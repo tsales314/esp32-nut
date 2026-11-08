@@ -87,6 +87,7 @@ test('clicking a telemetry row shows read-only details with the raw NUT variable
   await expect(page.locator('#metric-detail-title')).toHaveText('Input Voltage');
   await expect(page.locator('#metric-detail-value')).toHaveText('121 V');
   await expect(page.locator('#metric-detail-key')).toHaveText('input.voltage');
+  await expect(page.locator('#metric-detail-raw-value')).toHaveText('121');
   await expect(page.locator('#metric-detail-description')).not.toBeEmpty();
   await page.keyboard.press('Escape');
   await expect(page.locator('#metric-overlay')).toBeHidden();
@@ -139,6 +140,8 @@ test('battery power and low charge show warning indicators, not a healthy label'
   await expect(page.locator('#telemetry-status-context')).toHaveText('Running on battery power');
   await expect(page.locator('.telemetry-status-dot')).toHaveClass(/is-warning/);
   await expect(page.locator('[data-metric-key="battery.charge"] .telemetry-dot')).toHaveClass(/is-warning/);
+  await expect(page.locator('[data-metric-key="input.voltage"] .telemetry-dot')).toHaveClass(/is-warning/);
+  await expect(page.locator('#telemetry-health-input')).toHaveClass(/is-warning/);
   await expect(page.locator('#telemetry-health-device')).toHaveClass(/is-warning/);
 });
 
