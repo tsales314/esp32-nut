@@ -876,7 +876,7 @@
             <div class="tab-content active" id="content-ups">
                 <div class="panel ups-panel">
                     <div class="panel-header">
-                        <h2>Live UPS Stats</h2>
+                        <h2>Live UPS Telemetry</h2>
                         <div class="polling-indicator">
                             <span class="pulse-dot"></span> Live
                         </div>
@@ -889,10 +889,62 @@
                             style="color: white; text-decoration: underline;">GitHub</a> to request support.
                     </div>
 
-                    <!-- UPS variables populate as compact read-only buttons from /api/ups-vars. -->
-                    <div class="metrics-grid" id="metrics-grid" aria-label="Live UPS statistics">
-                        <!-- UPS Status is rendered first and always occupies an entire row. -->
-                        <p class="metrics-empty" id="metrics-empty">Waiting for UPS telemetry…</p>
+                    <!-- The status row is permanent. Dynamic NUT variables are grouped below it. -->
+                    <div class="metrics-grid telemetry-layout" id="metrics-grid" aria-label="Live UPS statistics">
+                        <button type="button" class="metric-card metric-card--status telemetry-status"
+                            data-metric-key="ups.status" aria-label="UPS Status: Checking UPS">
+                            <span class="telemetry-status-dot is-muted" aria-hidden="true"></span>
+                            <span class="telemetry-status-main">
+                                <span class="telemetry-status-label">UPS Status</span>
+                                <span class="metric-value"><span class="metric-reading" id="ups-status">Checking UPS…</span></span>
+                            </span>
+                            <span class="telemetry-status-aside">
+                                <span id="telemetry-status-context">Waiting for UPS telemetry</span>
+                                <span id="telemetry-last-updated">Not yet updated</span>
+                            </span>
+                        </button>
+                        <section class="telemetry-section" data-group="output" aria-label="Output telemetry">
+                            <h3 class="telemetry-section-heading">
+                                <button type="button" class="telemetry-section-toggle" data-group="output"
+                                    aria-expanded="true" aria-controls="telemetry-list-output">
+                                    <span class="telemetry-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v7M16 3v7M6 10h12v3a6 6 0 0 1-12 0v-3zM12 19v3"/></svg></span>
+                                    <span class="telemetry-section-title">Output</span>
+                                    <span class="telemetry-health is-muted" id="telemetry-health-output">Waiting</span>
+                                    <svg class="telemetry-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </h3>
+                            <div class="telemetry-list" id="telemetry-list-output">
+                                <p class="telemetry-section-empty" id="telemetry-empty-output">Waiting for telemetry…</p>
+                            </div>
+                        </section>
+                        <section class="telemetry-section" data-group="input" aria-label="Input telemetry">
+                            <h3 class="telemetry-section-heading">
+                                <button type="button" class="telemetry-section-toggle" data-group="input"
+                                    aria-expanded="true" aria-controls="telemetry-list-input">
+                                    <span class="telemetry-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12c4-10 8 10 12 0s6-5 8 0"/></svg></span>
+                                    <span class="telemetry-section-title">Input</span>
+                                    <span class="telemetry-health is-muted" id="telemetry-health-input">Waiting</span>
+                                    <svg class="telemetry-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </h3>
+                            <div class="telemetry-list" id="telemetry-list-input">
+                                <p class="telemetry-section-empty" id="telemetry-empty-input">Waiting for telemetry…</p>
+                            </div>
+                        </section>
+                        <section class="telemetry-section" data-group="device" aria-label="Device Details telemetry">
+                            <h3 class="telemetry-section-heading">
+                                <button type="button" class="telemetry-section-toggle" data-group="device"
+                                    aria-expanded="true" aria-controls="telemetry-list-device">
+                                    <span class="telemetry-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 13h8M8 17h4"/></svg></span>
+                                    <span class="telemetry-section-title">Device Details</span>
+                                    <span class="telemetry-health is-muted" id="telemetry-health-device">Waiting</span>
+                                    <svg class="telemetry-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </h3>
+                            <div class="telemetry-list" id="telemetry-list-device">
+                                <p class="telemetry-section-empty" id="telemetry-empty-device">Waiting for telemetry…</p>
+                            </div>
+                        </section>
                     </div>
 
                 </div>
@@ -1217,7 +1269,7 @@
                 </div>
             </div>
 
-            <!-- Reused detail view for each read-only telemetry card. -->
+            <!-- Reused detail view for every clickable telemetry list row. -->
             <div id="metric-overlay" class="metric-overlay" hidden>
                 <section class="metric-detail" role="dialog" aria-modal="true" aria-labelledby="metric-detail-title"
                     tabindex="-1">
