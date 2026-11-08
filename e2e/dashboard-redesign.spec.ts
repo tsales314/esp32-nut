@@ -33,6 +33,15 @@ test('desktop: compact cards render every reported UPS variable in three columns
   const grid = page.locator('#metrics-grid');
   const columns = await grid.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
   expect(columns).toBe(3);
+  const statusCard = page.locator('.metric-card[data-metric-key="ups.status"]');
+  await expect(statusCard).toHaveClass(/metric-card--status/);
+  await expect(statusCard.locator('.metric-reading')).toHaveText('On Line');
+  const width = await grid.evaluate(el => el.getBoundingClientRect().width);
+  const cardWidth = await statusCard.evaluate(el => el.getBoundingClientRect().width);
+  expect(cardWidth).toBeGreaterThan(width * 0.96);
+  const keys = await page.locator('.metric-card').evaluateAll(cards =>
+    cards.map(card => (card as HTMLElement).dataset.metricKey));
+  expect(keys[0]).toBe('ups.status');
   await expect(page.locator('.metric-card[data-metric-key="battery.charge"] .metric-reading')).toHaveText('98');
   await expect(page.locator('.metric-card[data-metric-key="battery.runtime"] .metric-reading')).toHaveText('2 h 58 m');
   await expect(page.locator('.metric-card[data-metric-key="ups.realpower"] .metric-reading')).toHaveText('0');
@@ -78,11 +87,38 @@ for (const width of [320, 375, 390, 428]) {
     const columns = await page.locator('#metrics-grid').evaluate(el =>
       getComputedStyle(el).gridTemplateColumns.split(' ').length);
     expect(columns).toBe(2);
+    const status = page.locator('.metric-card--status');
+    await expect(status).toHaveCount(1);
+    const statusWidth = await status.evaluate(el => el.getBoundingClientRect().width);
+    const gridWidth = await page.locator('#metrics-grid').evaluate(el => el.getBoundingClientRect().width);
+    expect(statusWidth).toBeGreaterThan(gridWidth * 0.96);
     const overflow = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+test('UPS status stays first even when the UPS does not report a status variable', async ({ page }) => {
+  await serveIndex(page);
+  await page.route('**/api/ups-vars', route => route.fulfill({
+    json: { 'battery.charge': '82', 'input.voltage': '121' },
+  }));
+  await page.goto('http://esp32.local/');
+  await expect(page.locator('.metric-card')).toHaveCount(3);
+  await expect(page.locator('.metric-card').first()).toHaveAttribute('data-metric-key', 'ups.status');
+  await expect(page.locator('.metric-card--status .metric-reading')).toHaveText('Status unavailable');
+});
+
+test('UPS status is visible before telemetry completes loading', async ({ page }) => {
+  await serveIndex(page);
+  await page.route('**/api/ups-vars', route => new Promise(resolve => {
+    // Leave the telemetry request pending during this assertion.
+    setTimeout(() => resolve(route.fulfill({ json: TELEMETRY })), 1500);
+  }));
+  await page.goto('http://esp32.local/');
+  await expect(page.locator('.metric-card--status .metric-reading')).toHaveText('Checking UPS…');
+  await expect(page.locator('.metric-card--status .metric-reading')).toHaveText('On Line', { timeout: 4000 });
+});
 
 test('offline UPS reports disconnected rather than retaining an old online state', async ({ page }) => {
   await serveIndex(page);
