@@ -116,6 +116,7 @@ test.describe('Generate Screenshots', () => {
     await page.evaluate(() => document.fonts.ready);
 
     // 1. UPS Telemetry (default tab): wait for the mocked telemetry
+    await page.locator('#nav-toggle').click();
     await page.locator('.tab[data-target="ups"]').click();
     await expect(page.locator('#content-ups')).toHaveClass(/active/);
     await expect(page.locator('#ups-charge')).toHaveText('100');
@@ -123,18 +124,21 @@ test.describe('Generate Screenshots', () => {
     await page.screenshot({ path: 'docs/images/ui-ups.png', animations: 'disabled' });
 
     // 2. UPS Commands
+    await page.locator('#nav-toggle').click();
     await page.locator('.tab[data-target="commands"]').click();
     await expect(page.locator('#content-commands')).toHaveClass(/active/);
     await expect(page.locator('.cmd-row')).toHaveCount(EATON_3S_COMMANDS.length);
     await page.screenshot({ path: 'docs/images/ui-commands.png', animations: 'disabled' });
 
     // 3. UPS Settings
+    await page.locator('#nav-toggle').click();
     await page.locator('.tab[data-target="settings"]').click();
     await expect(page.locator('#content-settings')).toHaveClass(/active/);
     await expect(page.locator('.cmd-row.set-row')).toHaveCount(EATON_3S_VARIABLES.length);
     await page.screenshot({ path: 'docs/images/ui-settings.png', animations: 'disabled' });
 
     // 4. Network (US-112)
+    await page.locator('#nav-toggle').click();
     await page.locator('.tab[data-target="network"]').click();
     await expect(page.locator('#content-network')).toHaveClass(/active/);
     await expect(page.locator('#content-network input').first()).toHaveValue('MyHomeNetwork');
@@ -143,16 +147,19 @@ test.describe('Generate Screenshots', () => {
     await page.screenshot({ path: 'docs/images/ui-network.png', animations: 'disabled' });
 
     // 5. NUT Server
+    await page.locator('#nav-toggle').click();
     await page.locator('.tab[data-target="nut"]').click();
     await expect(page.locator('#content-nut')).toHaveClass(/active/);
     await page.screenshot({ path: 'docs/images/ui-nut.png', animations: 'disabled' });
 
     // 6. Web Login
+    await page.locator('#nav-toggle').click();
     await page.locator('.tab[data-target="weblogin"]').click();
     await expect(page.locator('#content-weblogin')).toHaveClass(/active/);
     await page.screenshot({ path: 'docs/images/ui-weblogin.png', animations: 'disabled' });
 
     // 7. System Logs (wait for the mocked log lines)
+    await page.locator('#nav-toggle').click();
     await page.locator('.tab[data-target="logs"]').click();
     await expect(page.locator('#content-logs')).toHaveClass(/active/);
     await expect(page.locator('#terminal-output')).toContainText('Clients: 2/8 in use');
