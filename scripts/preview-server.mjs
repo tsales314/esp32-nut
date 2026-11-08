@@ -165,7 +165,7 @@ async function handlePostApi(req, res, p, s) {
 async function sendAsset(res, file) {
     try {
         let data = await readFile(join(WWW, file));
-        if (file.endsWith('.html')) {
+        if (file === 'index.html') {
             data = Buffer.from(data.toString('utf8').replace('</body>',
                 '<script defer src="/__preview/controls.js"></script>\n</body>'));
         }
