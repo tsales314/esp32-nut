@@ -294,12 +294,36 @@ document.addEventListener('DOMContentLoaded', () => {
         pageTitle.textContent = activeTab.textContent.trim();
     }
 
+    // Keep OTA in the same application shell. Its existing /update upload page
+    // is embedded only when selected, so the dashboard menu never disappears.
+    const otaFrame = document.getElementById('ota-frame');
+    if (otaFrame) {
+        otaFrame.addEventListener('load', () => {
+            try {
+                // When OTA authentication expires, show the login page at top-level.
+                if (otaFrame.contentWindow.location.pathname === '/login') {
+                    window.location.replace('/login?expired=1');
+                }
+            } catch (err) {
+                // Cross-origin frames are never expected; keep navigation safe.
+                console.error('Could not inspect OTA frame:', err);
+            }
+        });
+    }
+    window.addEventListener('message', (event) => {
+        if (!otaFrame || event.source !== otaFrame.contentWindow || event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== 'esp32-nut-ota-height') return;
+        const height = Number(event.data.height);
+        if (Number.isFinite(height) && height >= 240 && height <= 1500) {
+            otaFrame.style.height = Math.ceil(height) + 'px';
+        }
+    });
+
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const target = tab.getAttribute('data-target');
-            if (target === 'ota') {
-                window.location.href = '/update';
-                return;
+            if (target === 'ota' && otaFrame && !otaFrame.getAttribute('src')) {
+                otaFrame.setAttribute('src', otaFrame.dataset.src);
             }
 
             tabs.forEach(t => t.classList.remove('active'));
@@ -1652,9 +1676,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let metricReturnFocus = null;
 
     const PRIMARY_METRICS = [
-        'battery.charge', 'input.voltage', 'output.voltage', 'ups.load',
+        'ups.status', 'battery.charge', 'input.voltage', 'output.voltage', 'ups.load',
         'battery.runtime', 'input.frequency', 'battery.voltage',
-        'ups.temperature', 'ups.status', 'ups.realpower', 'ups.power',
+        'ups.temperature', 'ups.realpower', 'ups.power',
         'output.frequency', 'battery.voltage.nominal'
     ];
     const METRIC_NAMES = {
@@ -1718,8 +1742,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'generic';
     }
 
-    function metricFormat(key, value, isDisconnected) {
+    function metricFormat(key, value, isDisconnected, data = {}) {
         if (key === 'ups.status' && isDisconnected) return { reading: 'Disconnected', unit: '' };
+        if (key === 'ups.status' && data._loading) return { reading: 'Checking UPS…', unit: '' };
+        if (key === 'ups.status' && data._loadFailed) return { reading: 'Telemetry unavailable', unit: '' };
+        if (key === 'ups.status' && (value === undefined || value === null || value === '')) {
+            return { reading: 'Status unavailable', unit: '' };
+        }
         if (value === undefined || value === null || value === '') return { reading: '--', unit: '' };
         const raw = String(value);
         if (key === 'ups.status') {
@@ -1736,9 +1765,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return { reading: raw, unit: metricUnit(key) };
     }
 
-    function metricState(key, raw, disconnected) {
+    function metricState(key, raw, disconnected, failed) {
         if (key !== 'ups.status') return '';
         if (disconnected) return 'is-danger';
+        if (failed || !raw) return 'is-warning';
         const flags = String(raw || '').split(' ');
         if (flags.includes('LB') || flags.includes('FSD')) return 'is-danger';
         if (flags.includes('OB')) return 'is-warning';
@@ -1752,6 +1782,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.className = 'metric-card';
         card.dataset.metricKey = key;
         if (key === 'battery.charge') card.classList.add('highlight');
+        if (key === 'ups.status') card.classList.add('metric-card--status');
 
         const icon = document.createElement('span');
         icon.className = 'metric-icon';
@@ -1802,7 +1833,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = latestUpsVars;
         const raw = key === 'ups.status' && data._disconnected ?
             'Disconnected' : data[key];
-        const display = metricFormat(key, raw, !!data._disconnected);
+        const display = metricFormat(key, raw, !!data._disconnected, data);
         if (metricDetailTitle) metricDetailTitle.textContent = metricName(key);
         if (metricDetailValue) metricDetailValue.textContent = display.reading + (display.unit ? ' ' + display.unit : '');
         if (metricDetailKey) metricDetailKey.textContent = key;
@@ -1850,7 +1881,9 @@ document.addEventListener('DOMContentLoaded', () => {
         latestUpsVars = data;
         const keys = Object.keys(data)
             .filter(key => !key.startsWith('_') && data[key] !== undefined && data[key] !== null);
-        if (data._disconnected && !keys.includes('ups.status')) keys.push('ups.status');
+        // UPS Status always exists, including before the first poll and when
+        // the device is offline or the UPS does not report ups.status.
+        if (!keys.includes('ups.status')) keys.push('ups.status');
         const rank = key => {
             const index = PRIMARY_METRICS.indexOf(key);
             return index < 0 ? PRIMARY_METRICS.length : index;
@@ -1866,7 +1899,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return card;
             });
-            metricsGrid.replaceChildren(...(cards.length ? cards : [metricsEmpty]));
+            if (metricsEmpty) {
+                metricsEmpty.textContent = data._disconnected ? 'UPS disconnected; other readings are unavailable.' :
+                    data._loadFailed ? 'Waiting for telemetry to recover…' :
+                    data._loading ? 'Waiting for UPS telemetry…' :
+                    'No additional UPS readings are available.';
+            }
+            metricsGrid.replaceChildren(...cards, ...(keys.length === 1 && metricsEmpty ? [metricsEmpty] : []));
             for (const key of metricCards.keys()) {
                 if (!keys.includes(key)) metricCards.delete(key);
             }
@@ -1875,18 +1914,22 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const key of keys) {
             const card = metricCards.get(key);
             if (!card) continue;
-            const formatted = metricFormat(key, data[key], !!data._disconnected);
+            const formatted = metricFormat(key, data[key], !!data._disconnected, data);
             const reading = card.querySelector('.metric-reading');
             const unit = card.querySelector('.metric-unit');
             const value = card.querySelector('.metric-value');
             if (reading) reading.textContent = formatted.reading;
             if (unit) unit.textContent = formatted.unit;
-            if (value) value.className = 'metric-value ' + metricState(key, data[key], !!data._disconnected);
+            if (value) value.className = 'metric-value ' +
+                metricState(key, data[key], !!data._disconnected, !!data._loadFailed);
             card.setAttribute('aria-label', metricName(key) + ': ' + formatted.reading +
                 (formatted.unit ? ' ' + formatted.unit : '') + '. View details');
         }
         updateMetricDetail();
     }
+
+    // Keep the dedicated status row visible even before the first API reply.
+    renderMetrics({ _loading: true });
 
     // US-059: "Last test result" box, hidden when ups.test.result is absent
     function renderTestResult(data) {
@@ -1961,6 +2004,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error('Failed to fetch UPS vars:', error);
+            renderMetrics({ _loadFailed: true });
             const statusBadge = document.getElementById('status-badge');
             if (statusBadge) {
                 statusBadge.textContent = 'Offline';
