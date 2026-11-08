@@ -33,6 +33,7 @@ test.describe('OTA Update Flow', () => {
     await page.goto('http://esp32.local/');
     
     // Clicca sul tab OTA
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="ota"]');
     
     // Verifica che l'URL sia corretto
