@@ -3833,12 +3833,13 @@ body.auth-page {
     #content-ups .telemetry-status .metric-value { font-size: 1.12rem; }
     #content-ups .telemetry-status-aside {
         grid-column: 2;
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: .35rem;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: flex-start;
+        gap: .15rem;
         font-size: .67rem;
         text-align: left;
+        overflow-wrap: anywhere;
     }
     #content-ups .telemetry-section-toggle {
         padding: .63rem .75rem;
