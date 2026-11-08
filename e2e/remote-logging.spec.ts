@@ -86,6 +86,7 @@ async function routeLogging(page: Page, mock: Mock): Promise<void> {
 
 async function openLogs(page: Page): Promise<void> {
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.click('[data-target="logs"]');
   await expect(page.locator('#content-logs')).toHaveClass(/active/);
 }
@@ -288,6 +289,7 @@ test.describe('Remote logging (US-116): expired session', () => {
     await serveLogin(page);
     await page.route('**/api/logging', route => route.fulfill({ status: 401, json: { error: 'unauthorized' } }));
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('[data-target="logs"]');
     await expect(page).toHaveURL('http://esp32.local/login?expired=1');
   });
