@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { serveIndex } from './support/webui';
 
-test.describe('UPS telemetry cards', () => {
+test.describe('UPS grouped telemetry lists', () => {
   test.beforeEach(async ({ page }) => {
     await serveIndex(page);
     await page.route('**/api/config', route => route.fulfill({ json: {} }));
@@ -28,7 +28,7 @@ test.describe('UPS telemetry cards', () => {
     await expect(page.locator('#ups-realpower')).toHaveText('120');
     await expect(page.locator('.metric-card[data-metric-key="battery.runtime"] .metric-reading')).toHaveText('54 min');
 
-    // Every card provides the original NUT variable and description.
+    // Every telemetry row provides the original NUT variable and description.
     await page.locator('.metric-card[data-metric-key="ups.mfr"]').click();
     await expect(page.locator('#metric-detail-key')).toHaveText('ups.mfr');
     await expect(page.locator('#metric-detail-description')).toHaveText('UPS manufacturer');
@@ -77,7 +77,7 @@ test.describe('UPS telemetry cards', () => {
     await expect(page.locator('.metric-card[data-metric-key="ups.realpower"]')).toHaveCount(0);
   });
 
-  test('shows zero values and puts primary metrics ahead of secondary data', async ({ page }) => {
+  test('shows zero values and groups output before input and device details', async ({ page }) => {
     await page.route('**/api/ups-vars', route => route.fulfill({
       json: {
         'ups.mfr': 'Eaton',
@@ -93,7 +93,10 @@ test.describe('UPS telemetry cards', () => {
     await expect(page.locator('#ups-realpower')).toHaveText('0');
     const keys = await page.locator('.metric-card').evaluateAll(cards =>
       cards.map(card => (card as HTMLElement).dataset.metricKey));
-    expect(keys.slice(0, 4)).toEqual(['battery.charge', 'input.voltage', 'ups.load', 'ups.status']);
-    expect(keys[keys.length - 1]).toBe('ups.mfr');
+    expect(keys).toEqual(['ups.status', 'ups.load', 'ups.realpower',
+      'input.voltage', 'ups.mfr', 'battery.charge']);
+    await expect(page.locator('#telemetry-list-output [data-metric-key="ups.realpower"]')).toHaveCount(1);
+    await expect(page.locator('#telemetry-list-input [data-metric-key="input.voltage"]')).toHaveCount(1);
+    await expect(page.locator('#telemetry-list-device [data-metric-key="battery.charge"]')).toHaveCount(1);
   });
 });
