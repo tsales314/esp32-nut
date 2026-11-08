@@ -26,25 +26,37 @@ async function openDashboard(page: Page) {
   await expect(page.locator('.metric-card')).toHaveCount(Object.keys(TELEMETRY).length);
 }
 
-test('desktop: compact cards render every reported UPS variable in three columns', async ({ page }) => {
+test('desktop: status banner and compact Output, Input, Device Details lists', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openDashboard(page);
 
-  const grid = page.locator('#metrics-grid');
-  const columns = await grid.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
-  expect(columns).toBe(3);
-  const statusCard = page.locator('.metric-card[data-metric-key="ups.status"]');
-  await expect(statusCard).toHaveClass(/metric-card--status/);
-  await expect(statusCard.locator('.metric-reading')).toHaveText('On Line');
-  const width = await grid.evaluate(el => el.getBoundingClientRect().width);
-  const cardWidth = await statusCard.evaluate(el => el.getBoundingClientRect().width);
-  expect(cardWidth).toBeGreaterThan(width * 0.96);
-  const keys = await page.locator('.metric-card').evaluateAll(cards =>
-    cards.map(card => (card as HTMLElement).dataset.metricKey));
-  expect(keys[0]).toBe('ups.status');
-  await expect(page.locator('.metric-card[data-metric-key="battery.charge"] .metric-reading')).toHaveText('98');
-  await expect(page.locator('.metric-card[data-metric-key="battery.runtime"] .metric-reading')).toHaveText('2 h 58 m');
-  await expect(page.locator('.metric-card[data-metric-key="ups.realpower"] .metric-reading')).toHaveText('0');
+  const layout = page.locator('#metrics-grid');
+  await expect(layout).toHaveClass(/telemetry-layout/);
+  const sections = page.locator('.telemetry-section');
+  await expect(sections).toHaveCount(3);
+  const order = await sections.evaluateAll(nodes =>
+    nodes.map(node => (node as HTMLElement).dataset.group));
+  expect(order).toEqual(['output', 'input', 'device']);
+
+  const banner = page.locator('.telemetry-status');
+  await expect(banner.locator('#ups-status')).toHaveText('On Line');
+  await expect(page.locator('#telemetry-status-context')).toHaveText('On utility power');
+  const width = await layout.evaluate(el => el.getBoundingClientRect().width);
+  expect(await banner.evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(width * .96);
+  const allKeys = await page.locator('.metric-card').evaluateAll(nodes =>
+    nodes.map(node => (node as HTMLElement).dataset.metricKey));
+  expect(allKeys[0]).toBe('ups.status');
+  expect(new Set(allKeys).size).toBe(Object.keys(TELEMETRY).length);
+
+  const output = page.locator('#telemetry-list-output');
+  await expect(output.locator('[data-metric-key="output.voltage"] .metric-reading')).toHaveText('121');
+  await expect(output.locator('[data-metric-key="battery.runtime"] .metric-reading')).toHaveText('2 h 58 m');
+  await expect(output.locator('[data-metric-key="ups.realpower"] .metric-reading')).toHaveText('0');
+  await expect(page.locator('#telemetry-list-input [data-metric-key="input.voltage"]')).toHaveCount(1);
+  await expect(page.locator('#telemetry-list-device [data-metric-key="ups.model"]')).toHaveCount(1);
+  await expect(page.locator('#telemetry-list-device [data-metric-key="battery.charge"]')).toHaveCount(1);
+  expect(await output.locator('.telemetry-row').first().evaluate(el =>
+    el.getBoundingClientRect().height)).toBeLessThan(46);
   await expect(page.locator('#nav-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('#app-sidebar')).toHaveAttribute('aria-hidden', 'true');
 });
@@ -68,7 +80,7 @@ test('hamburger opens and closes navigation; existing pages still work', async (
   await expect(page.locator('#app-sidebar')).not.toHaveClass(/is-open/);
 });
 
-test('clicking a card shows read-only details with the raw NUT variable', async ({ page }) => {
+test('clicking a telemetry row shows read-only details with the raw NUT variable', async ({ page }) => {
   await openDashboard(page);
   await page.locator('.metric-card[data-metric-key="input.voltage"]').click();
   await expect(page.locator('#metric-overlay')).toBeVisible();
@@ -81,22 +93,54 @@ test('clicking a card shows read-only details with the raw NUT variable', async 
 });
 
 for (const width of [320, 375, 390, 428]) {
-  test('mobile ' + width + 'px: two columns and no horizontal overflow', async ({ page }) => {
+  test('mobile ' + width + 'px: single-width compact sections without overflow', async ({ page }) => {
     await page.setViewportSize({ width, height: 812 });
     await openDashboard(page);
-    const columns = await page.locator('#metrics-grid').evaluate(el =>
-      getComputedStyle(el).gridTemplateColumns.split(' ').length);
-    expect(columns).toBe(2);
-    const status = page.locator('.metric-card--status');
-    await expect(status).toHaveCount(1);
-    const statusWidth = await status.evaluate(el => el.getBoundingClientRect().width);
-    const gridWidth = await page.locator('#metrics-grid').evaluate(el => el.getBoundingClientRect().width);
-    expect(statusWidth).toBeGreaterThan(gridWidth * 0.96);
+    const layout = page.locator('#metrics-grid');
+    await expect(page.locator('.telemetry-section')).toHaveCount(3);
+    const mainWidth = await layout.evaluate(el => el.getBoundingClientRect().width);
+    const statusWidth = await page.locator('.telemetry-status').evaluate(el => el.getBoundingClientRect().width);
+    expect(statusWidth).toBeGreaterThan(mainWidth * .96);
+    for (const section of await page.locator('.telemetry-section').all()) {
+      const width = await section.evaluate(el => el.getBoundingClientRect().width);
+      expect(width).toBeGreaterThan(mainWidth * .96);
+    }
     const overflow = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+test('sections collapse independently and remain collapsed while live polling', async ({ page }) => {
+  await openDashboard(page);
+  const outputToggle = page.locator('.telemetry-section-toggle[data-group="output"]');
+  const outputList = page.locator('#telemetry-list-output');
+  await expect(outputList).toBeVisible();
+  await outputToggle.click();
+  await expect(outputToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(outputList).toBeHidden();
+  await expect(page.locator('#telemetry-list-input')).toBeVisible();
+  await page.waitForTimeout(2300); // Longer than the existing 2-second UPS poll.
+  await expect(outputList).toBeHidden();
+  await outputToggle.click();
+  await expect(outputList).toBeVisible();
+  await expect(outputList.locator('.telemetry-row')).not.toHaveCount(0);
+});
+
+test('battery power and low charge show warning indicators, not a healthy label', async ({ page }) => {
+  await serveIndex(page);
+  await page.route('**/api/ups-vars', route => route.fulfill({
+    json: { 'ups.status': 'OB', 'battery.charge': '10',
+      'battery.charge.low': '20', 'battery.status': 'LOW',
+      'output.voltage': '120', 'input.voltage': '0' },
+  }));
+  await page.goto('http://esp32.local/');
+  await expect(page.locator('#ups-status')).toHaveText('On Battery');
+  await expect(page.locator('#telemetry-status-context')).toHaveText('Running on battery power');
+  await expect(page.locator('.telemetry-status-dot')).toHaveClass(/is-warning/);
+  await expect(page.locator('[data-metric-key="battery.charge"] .telemetry-dot')).toHaveClass(/is-warning/);
+  await expect(page.locator('#telemetry-health-device')).toHaveClass(/is-warning/);
+});
 
 test('UPS status stays first even when the UPS does not report a status variable', async ({ page }) => {
   await serveIndex(page);
