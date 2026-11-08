@@ -163,6 +163,7 @@ test.describe('UPS Settings page (US-068)', () => {
     await expect(thirdTab).toHaveText('UPS Settings');
     expect(mock.getHits).toBe(0);
 
+    await page.locator('#nav-toggle').click();
     await thirdTab.click();
     await expect(page.locator('.page-title')).toHaveText('UPS Settings');
     await expect(page.locator('#content-settings')).toBeVisible();
