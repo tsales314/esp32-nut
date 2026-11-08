@@ -1682,17 +1682,24 @@ document.addEventListener('DOMContentLoaded', () => {
         'output.frequency', 'battery.voltage.nominal'
     ];
     const METRIC_NAMES = {
-        'battery.charge': 'Battery Level',
+        'battery.charge': 'Battery Charge',
         'input.voltage': 'Input Voltage',
         'output.voltage': 'Output Voltage',
-        'ups.load': 'UPS Load',
-        'battery.runtime': 'Runtime Remaining',
+        'ups.load': 'Load',
+        'battery.runtime': 'Runtime (on battery)',
         'input.frequency': 'Input Frequency',
         'battery.voltage': 'Battery Voltage',
         'ups.temperature': 'Temperature',
         'ups.status': 'UPS Status',
-        'ups.realpower': 'Real Power',
-        'ups.power': 'Apparent Power'
+        'ups.realpower': 'Output Power',
+        'ups.power': 'Apparent Power',
+        'ups.mfr': 'Manufacturer',
+        'ups.model': 'UPS Model',
+        'ups.serial': 'UPS Serial Number',
+        'ups.beeper.status': 'Beeper',
+        'battery.status': 'Battery Status',
+        'battery.health': 'Battery Health',
+        'input.quality': 'Input Quality'
     };
     const METRIC_UNITS = {
         'battery.charge': '%', 'ups.load': '%',
@@ -1776,23 +1783,85 @@ document.addEventListener('DOMContentLoaded', () => {
         return '';
     }
 
+    // Compact dashboard: permanent status banner, followed by three collapsible
+    // read-only metric lists. Every NUT variable still has a clickable detail view.
+    const TELEMETRY_GROUPS = ['output', 'input', 'device'];
+    const TELEMETRY_ORDER = {
+        output: ['output.voltage', 'ups.load', 'ups.realpower', 'ups.power',
+            'battery.runtime', 'battery.voltage', 'output.frequency',
+            'battery.voltage.nominal', 'ups.power.nominal'],
+        input: ['input.voltage', 'input.frequency', 'input.quality',
+            'input.voltage.nominal', 'input.transfer.low', 'input.transfer.high'],
+        device: ['ups.model', 'ups.mfr', 'ups.serial', 'battery.status',
+            'battery.charge', 'battery.health', 'ups.beeper.status',
+            'ups.temperature', 'ups.firmware', 'driver.name', 'driver.version']
+    };
+    const TELEMETRY_OUTPUT = new Set(TELEMETRY_ORDER.output.concat(
+        ['ups.efficiency', 'ups.load.high']));
+    const telemetryLists = {};
+    const telemetryEmpty = {};
+    const telemetryHealth = {};
+    for (const name of TELEMETRY_GROUPS) {
+        telemetryLists[name] = document.getElementById('telemetry-list-' + name);
+        telemetryEmpty[name] = document.getElementById('telemetry-empty-' + name);
+        telemetryHealth[name] = document.getElementById('telemetry-health-' + name);
+    }
+    const statusCard = document.querySelector('#metrics-grid .telemetry-status');
+    const statusContext = document.getElementById('telemetry-status-context');
+    const statusUpdated = document.getElementById('telemetry-last-updated');
+
+    function metricGroup(key) {
+        if (key.startsWith('input.')) return 'input';
+        if (key.startsWith('output.') || key.startsWith('battery.voltage') ||
+            key === 'battery.runtime' || TELEMETRY_OUTPUT.has(key)) return 'output';
+        // Unclassified/vendor-specific variables remain visible in Device Details.
+        return 'device';
+    }
+
+    function groupRank(group, key) {
+        const index = TELEMETRY_ORDER[group].indexOf(key);
+        return index < 0 ? TELEMETRY_ORDER[group].length : index;
+    }
+
+    function metricHealth(key, raw, data) {
+        if (data._disconnected) return 'is-danger';
+        if (data._loadFailed) return 'is-warning';
+        if (data._loading || raw === undefined || raw === null || raw === '') return 'is-muted';
+        const value = String(raw).trim().toLowerCase();
+        // Explicit device states take priority; no fabricated voltage/wattage limits.
+        if (key === 'ups.status') {
+            const flags = value.split(/\s+/);
+            if (flags.includes('fsd') || flags.includes('lb') ||
+                flags.includes('rb') || flags.includes('over')) return 'is-danger';
+            if (flags.includes('ob')) return 'is-warning';
+            if (flags.includes('ol')) return 'is-good';
+            return 'is-muted';
+        }
+        if (/\b(fault|failed|failure|replace|critical|overload|error|bad)\b/.test(value)) return 'is-danger';
+        if (/\b(warning|degraded|low|poor|on battery)\b/.test(value)) return 'is-warning';
+        // Only compare battery values against the UPS driver's published thresholds.
+        if (key === 'battery.charge' || key === 'battery.runtime') {
+            const threshold = Number(data[key + '.low']);
+            const current = Number(raw);
+            if (data[key + '.low'] !== undefined && Number.isFinite(threshold) &&
+                Number.isFinite(current) && current <= threshold) return 'is-warning';
+        }
+        // For numeric values the green dot means a live reading, not independent
+        // verification that a value falls within electrical safety limits.
+        if (key === 'ups.beeper.status' || /^(driver|device|ups.serial|ups.mfr|ups.model)/.test(key)) return 'is-muted';
+        if (value === 'off' || value === 'disabled' || value === 'unknown') return 'is-muted';
+        return 'is-good';
+    }
+
     function createMetricCard(key) {
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'metric-card';
-        card.dataset.metricKey = key;
-        if (key === 'battery.charge') card.classList.add('highlight');
-        if (key === 'ups.status') card.classList.add('metric-card--status');
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'metric-card telemetry-row';
+        row.dataset.metricKey = key;
 
-        const icon = document.createElement('span');
-        icon.className = 'metric-icon';
-        icon.setAttribute('aria-hidden', 'true');
-        const iconType = metricIcon(key);
-        // Icon markup comes only from static constants, never from the UPS API.
-        icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + METRIC_ICONS[iconType] + '</svg>';
-
-        const copy = document.createElement('span');
-        copy.className = 'metric-copy';
+        const dot = document.createElement('span');
+        dot.className = 'telemetry-dot is-muted';
+        dot.setAttribute('aria-hidden', 'true');
         const label = document.createElement('span');
         label.className = 'metric-label';
         label.textContent = metricName(key);
@@ -1800,9 +1869,7 @@ document.addEventListener('DOMContentLoaded', () => {
         value.className = 'metric-value';
         const reading = document.createElement('span');
         reading.className = 'metric-reading';
-        // Retain stable selectors for telemetry consumers and existing tests.
         const legacyIds = {
-            'ups.status': 'ups-status',
             'battery.charge': 'ups-charge',
             'ups.load': 'ups-load',
             'ups.realpower': 'ups-realpower'
@@ -1811,20 +1878,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const unit = document.createElement('span');
         unit.className = 'metric-unit';
         value.append(reading, unit);
-        copy.append(label, value);
-
-        const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        chevron.setAttribute('viewBox', '0 0 24 24');
-        chevron.setAttribute('fill', 'none');
-        chevron.setAttribute('stroke', 'currentColor');
-        chevron.setAttribute('stroke-width', '2');
-        chevron.setAttribute('class', 'metric-chevron');
-        chevron.setAttribute('aria-hidden', 'true');
-        const chevronPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        chevronPath.setAttribute('d', 'm9 18 6-6-6-6');
-        chevron.appendChild(chevronPath);
-        card.append(icon, copy, chevron);
-        return card;
+        row.append(dot, label, value);
+        return row;
     }
 
     function updateMetricDetail() {
@@ -1835,9 +1890,11 @@ document.addEventListener('DOMContentLoaded', () => {
             'Disconnected' : data[key];
         const display = metricFormat(key, raw, !!data._disconnected, data);
         if (metricDetailTitle) metricDetailTitle.textContent = metricName(key);
-        if (metricDetailValue) metricDetailValue.textContent = display.reading + (display.unit ? ' ' + display.unit : '');
+        if (metricDetailValue) metricDetailValue.textContent =
+            display.reading + (display.unit ? ' ' + display.unit : '');
         if (metricDetailKey) metricDetailKey.textContent = key;
-        if (metricDetailDescription) metricDetailDescription.textContent = NUT_DESCRIPTIONS[key] || 'No description available.';
+        if (metricDetailDescription) metricDetailDescription.textContent =
+            NUT_DESCRIPTIONS[key] || 'No description available.';
     }
 
     function closeMetricDetail() {
@@ -1855,13 +1912,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (metricsGrid) {
         metricsGrid.addEventListener('click', (event) => {
-            const card = event.target.closest('.metric-card');
-            if (!card) return;
-            metricReturnFocus = card;
-            selectedMetricKey = card.dataset.metricKey;
+            const row = event.target.closest('.metric-card');
+            if (!row) return;
+            metricReturnFocus = row;
+            selectedMetricKey = row.dataset.metricKey;
             updateMetricDetail();
             if (metricOverlay) metricOverlay.hidden = false;
             if (metricDialog) metricDialog.focus();
+        });
+        metricsGrid.querySelectorAll('.telemetry-section-toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const expanded = toggle.getAttribute('aria-expanded') === 'true';
+                const list = document.getElementById(toggle.getAttribute('aria-controls'));
+                toggle.setAttribute('aria-expanded', String(!expanded));
+                if (list) list.hidden = expanded;
+            });
         });
     }
     document.addEventListener('keydown', (event) => {
@@ -1870,65 +1935,124 @@ document.addEventListener('DOMContentLoaded', () => {
             closeMetricDetail();
         }
         if (event.key === 'Tab' && metricOverlay && !metricOverlay.hidden && metricDialog) {
-            // Only one focusable control in the detail view.
             event.preventDefault();
             if (metricClose) metricClose.focus();
         }
     });
 
+    function updateStatusBanner(data) {
+        if (!statusCard) return;
+        const formatted = metricFormat('ups.status', data['ups.status'],
+            !!data._disconnected, data);
+        const health = metricHealth('ups.status', data['ups.status'], data);
+        const reading = statusCard.querySelector('.metric-reading');
+        const value = statusCard.querySelector('.metric-value');
+        const dot = statusCard.querySelector('.telemetry-status-dot');
+        if (reading) reading.textContent = formatted.reading;
+        if (value) value.className = 'metric-value ' + health;
+        if (dot) dot.className = 'telemetry-status-dot ' + health;
+        statusCard.dataset.health = health;
+        const flags = String(data['ups.status'] || '').split(/\s+/);
+        if (statusContext) {
+            statusContext.textContent = data._disconnected ? 'UPS disconnected' :
+                data._loadFailed ? 'No telemetry response' :
+                data._loading ? 'Waiting for first update' :
+                flags.includes('FSD') || flags.includes('LB') ? 'UPS requires attention' :
+                flags.includes('OB') ? 'Running on battery power' :
+                flags.includes('OL') ? 'On utility power' : 'Power state unknown';
+        }
+        if (statusUpdated) {
+            statusUpdated.textContent = data._loadFailed ? 'Update failed' :
+                data._loading ? 'Not yet updated' : 'Live · Updated just now';
+        }
+        statusCard.setAttribute('aria-label', 'UPS Status: ' +
+            formatted.reading + '. View raw NUT details');
+    }
+
+    function updateGroupHealth(group, keys, data) {
+        const badge = telemetryHealth[group];
+        if (!badge) return;
+        let level = 'is-good';
+        let label = 'Reporting';
+        if (data._disconnected) { level = 'is-danger'; label = 'Offline'; }
+        else if (data._loadFailed) { level = 'is-warning'; label = 'Unavailable'; }
+        else if (data._loading) { level = 'is-muted'; label = 'Waiting'; }
+        else if (!keys.length) { level = 'is-muted'; label = 'No data'; }
+        else {
+            const states = keys.map(key => metricHealth(key, data[key], data));
+            if (states.includes('is-danger')) { level = 'is-danger'; label = 'Attention'; }
+            else if (states.includes('is-warning')) { level = 'is-warning'; label = 'Warning'; }
+            else if (states.every(state => state === 'is-muted')) {
+                level = 'is-muted'; label = 'Details';
+            } else {
+                // "Reporting" avoids claiming electrical safety without thresholds.
+                level = 'is-good'; label = 'Reporting';
+            }
+        }
+        badge.className = 'telemetry-health ' + level;
+        badge.textContent = label;
+    }
+
     function renderMetrics(data) {
         if (!metricsGrid) return;
         latestUpsVars = data;
-        const keys = Object.keys(data)
-            .filter(key => !key.startsWith('_') && data[key] !== undefined && data[key] !== null);
-        // UPS Status always exists, including before the first poll and when
-        // the device is offline or the UPS does not report ups.status.
-        if (!keys.includes('ups.status')) keys.push('ups.status');
-        const rank = key => {
-            const index = PRIMARY_METRICS.indexOf(key);
-            return index < 0 ? PRIMARY_METRICS.length : index;
-        };
-        keys.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
-        const order = keys.join('\u0001');
+        const groups = { output: [], input: [], device: [] };
+        Object.keys(data)
+            .filter(key => key !== 'ups.status' && !key.startsWith('_') &&
+                data[key] !== undefined && data[key] !== null)
+            .forEach(key => groups[metricGroup(key)].push(key));
+        for (const group of TELEMETRY_GROUPS) {
+            groups[group].sort((a, b) =>
+                groupRank(group, a) - groupRank(group, b) || a.localeCompare(b));
+        }
+        // Rebuild list children only when variables appear/disappear/reorder.
+        // This keeps open sections, focus, and active detail dialogs stable.
+        const order = TELEMETRY_GROUPS.map(group => groups[group].join('\u0001')).join('\u0002');
         if (order !== previousMetricOrder) {
-            const cards = keys.map(key => {
-                let card = metricCards.get(key);
-                if (!card) {
-                    card = createMetricCard(key);
-                    metricCards.set(key, card);
+            for (const group of TELEMETRY_GROUPS) {
+                const list = telemetryLists[group];
+                if (!list) continue;
+                const cards = groups[group].map(key => {
+                    if (!metricCards.has(key)) metricCards.set(key, createMetricCard(key));
+                    return metricCards.get(key);
+                });
+                const empty = telemetryEmpty[group];
+                if (empty) {
+                    empty.textContent = data._disconnected ? 'UPS disconnected' :
+                        data._loadFailed ? 'Waiting for telemetry to recover…' :
+                        data._loading ? 'Waiting for UPS telemetry…' :
+                        'No ' + (group === 'device' ? 'device' : group) + ' readings reported';
                 }
-                return card;
-            });
-            if (metricsEmpty) {
-                metricsEmpty.textContent = data._disconnected ? 'UPS disconnected; other readings are unavailable.' :
-                    data._loadFailed ? 'Waiting for telemetry to recover…' :
-                    data._loading ? 'Waiting for UPS telemetry…' :
-                    'No additional UPS readings are available.';
+                list.replaceChildren(...cards, ...(cards.length === 0 && empty ? [empty] : []));
             }
-            metricsGrid.replaceChildren(...cards, ...(keys.length === 1 && metricsEmpty ? [metricsEmpty] : []));
+            const activeKeys = new Set(TELEMETRY_GROUPS.flatMap(group => groups[group]));
             for (const key of metricCards.keys()) {
-                if (!keys.includes(key)) metricCards.delete(key);
+                if (!activeKeys.has(key)) metricCards.delete(key);
             }
             previousMetricOrder = order;
         }
-        for (const key of keys) {
-            const card = metricCards.get(key);
-            if (!card) continue;
-            const formatted = metricFormat(key, data[key], !!data._disconnected, data);
-            const reading = card.querySelector('.metric-reading');
-            const unit = card.querySelector('.metric-unit');
-            const value = card.querySelector('.metric-value');
-            if (reading) reading.textContent = formatted.reading;
-            if (unit) unit.textContent = formatted.unit;
-            if (value) value.className = 'metric-value ' +
-                metricState(key, data[key], !!data._disconnected, !!data._loadFailed);
-            card.setAttribute('aria-label', metricName(key) + ': ' + formatted.reading +
-                (formatted.unit ? ' ' + formatted.unit : '') + '. View details');
+        for (const group of TELEMETRY_GROUPS) {
+            for (const key of groups[group]) {
+                const card = metricCards.get(key);
+                if (!card) continue;
+                const formatted = metricFormat(key, data[key], !!data._disconnected, data);
+                const reading = card.querySelector('.metric-reading');
+                const unit = card.querySelector('.metric-unit');
+                const dot = card.querySelector('.telemetry-dot');
+                const health = metricHealth(key, data[key], data);
+                if (reading) reading.textContent = formatted.reading;
+                if (unit) unit.textContent = formatted.unit;
+                if (dot) dot.className = 'telemetry-dot ' + health;
+                card.setAttribute('aria-label', metricName(key) + ': ' + formatted.reading +
+                    (formatted.unit ? ' ' + formatted.unit : '') + '. View details');
+            }
+            updateGroupHealth(group, groups[group], data);
         }
+        updateStatusBanner(data);
         updateMetricDetail();
     }
 
-    // Keep the dedicated status row visible even before the first API reply.
+    // Keep the dedicated status and empty sections visible before first polling.
     renderMetrics({ _loading: true });
 
     // US-059: "Last test result" box, hidden when ups.test.result is absent
