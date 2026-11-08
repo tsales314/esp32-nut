@@ -2017,12 +2017,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return metricCards.get(key);
                 });
                 const empty = telemetryEmpty[group];
-                if (empty) {
-                    empty.textContent = data._disconnected ? 'UPS disconnected' :
-                        data._loadFailed ? 'Waiting for telemetry to recover…' :
-                        data._loading ? 'Waiting for UPS telemetry…' :
-                        'No ' + (group === 'device' ? 'device' : group) + ' readings reported';
-                }
                 list.replaceChildren(...cards, ...(cards.length === 0 && empty ? [empty] : []));
             }
             const activeKeys = new Set(TELEMETRY_GROUPS.flatMap(group => groups[group]));
@@ -2032,6 +2026,13 @@ document.addEventListener('DOMContentLoaded', () => {
             previousMetricOrder = order;
         }
         for (const group of TELEMETRY_GROUPS) {
+            const empty = telemetryEmpty[group];
+            if (empty) {
+                empty.textContent = data._disconnected ? 'UPS disconnected' :
+                    data._loadFailed ? 'Waiting for telemetry to recover…' :
+                    data._loading ? 'Waiting for UPS telemetry…' :
+                    'No ' + (group === 'device' ? 'device' : group) + ' readings reported';
+            }
             for (const key of groups[group]) {
                 const card = metricCards.get(key);
                 if (!card) continue;
@@ -2099,6 +2100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (data.error) {
                 console.error('UPS Error:', data.error);
+                renderMetrics({ _loadFailed: true });
                 return;
             }
 
