@@ -55,7 +55,7 @@ test('hamburger opens and closes navigation; existing pages still work', async (
   await expect(page.locator('#app-sidebar')).not.toHaveClass(/is-open/);
 
   await page.locator('#nav-toggle').click();
-  await page.locator('#nav-scrim').click({ position: { x: 2, y: 200 } });
+  await page.mouse.click(1100, 200);
   await expect(page.locator('#app-sidebar')).not.toHaveClass(/is-open/);
 });
 
