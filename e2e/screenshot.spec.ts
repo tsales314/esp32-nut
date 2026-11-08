@@ -120,7 +120,7 @@ test.describe('Generate Screenshots', () => {
     await page.locator('.tab[data-target="ups"]').click();
     await expect(page.locator('#content-ups')).toHaveClass(/active/);
     await expect(page.locator('#ups-charge')).toHaveText('100');
-    await expect(page.locator('#row-ups-model')).toBeVisible();
+    await expect(page.locator('.metric-card[data-metric-key="ups.model"]')).toBeVisible();
     await page.screenshot({ path: 'docs/images/ui-ups.png', animations: 'disabled' });
 
     // 2. UPS Commands
