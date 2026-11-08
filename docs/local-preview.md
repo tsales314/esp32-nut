@@ -37,7 +37,10 @@ To stop, press **Ctrl+C** in the terminal.
   UPS Settings, Network, NUT Server, Board Settings, System Logs and Firmware OTA.
   Firmware OTA keeps the hamburger menu visible and uses an embedded version
   of the normal upload page. The mock server rejects actual firmware uploads.
-- Click any live telemetry card to see its raw NUT variable and description.
+- Review the always-visible UPS Status banner, followed by compact, collapsible
+  **Output**, **Input** and **Device Details** sections. Click any row to see
+  its raw NUT variable and description. Colored dots signal live readings and
+  explicit warning/fault states; they are not independent electrical safety checks.
 - Resize the browser or use responsive device mode in developer tools.
 - Expand **LOCAL PREVIEW · Demo controls** in the lower-right corner.
   Switch between **Online**, **Battery**, and **Offline**.
