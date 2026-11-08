@@ -299,7 +299,7 @@ ${CONFIRM_WARNING}`);
   });
 
   // US-086: the beeper is driven from this page (beeper.*), the telemetry toggle is gone
-  test('telemetry: no beeper toggle, beeper status still in the table', async ({ page }) => {
+  test('telemetry: no beeper toggle, beeper status still shown as a card', async ({ page }) => {
     await openCommandsTab(page);
     await expect(page.locator('.cmd-row')).toHaveCount(3);
 
@@ -309,7 +309,7 @@ ${CONFIRM_WARNING}`);
     await expect(page.locator('#content-ups')).toBeVisible();
 
     await expect(page.locator('#ups-status')).toHaveText('On Line');
-    await expect(page.locator('#row-ups-beeper-status .ups-val')).toHaveText('enabled');
+    await expect(page.locator('.metric-card[data-metric-key="ups.beeper.status"] .metric-reading')).toHaveText('enabled');
     await expect(page.locator('.ups-actions')).toHaveCount(0);
     await expect(page.locator('#toggle-beeper')).toHaveCount(0);
   });
