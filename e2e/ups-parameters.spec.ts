@@ -1,176 +1,99 @@
 import { test, expect } from '@playwright/test';
 import { serveIndex } from './support/webui';
 
-test.describe('UPS Parameters UI', () => {
+test.describe('UPS telemetry cards', () => {
   test.beforeEach(async ({ page }) => {
     await serveIndex(page);
-    // Mock the global config so bundle.js does not fail fetching it
-    await page.route('**/api/config', async route => {
-        await route.fulfill({ json: {} });
-    });
+    await page.route('**/api/config', route => route.fulfill({ json: {} }));
   });
 
-  test('polls and updates UPS parameters automatically', async ({ page }) => {
-    // Initial mock data
-    let mockData = {
-      "ups.status": "OL",
-      "ups.mfr": "Eaton",
-      "battery.charge": "100",
-      "battery.runtime": "3240",
-      "ups.load": "15",
-      "ups.realpower": "120",
-      "input.voltage.nominal": "230",
-      "output.voltage": "230.1"
+  test('polls and updates all reported UPS values and their details', async ({ page }) => {
+    let mockData: Record<string, string> = {
+      'ups.status': 'OL',
+      'ups.mfr': 'Eaton',
+      'battery.charge': '100',
+      'battery.runtime': '3240',
+      'ups.load': '15',
+      'ups.realpower': '120',
+      'input.voltage.nominal': '230',
+      'output.voltage': '230.1',
     };
-
-    await page.route('**/api/ups-vars', async route => {
-      await route.fulfill({ json: mockData });
-    });
-
+    await page.route('**/api/ups-vars', route => route.fulfill({ json: mockData }));
     await page.goto('http://esp32.local/');
 
-    // Click UPS tab
-    await page.click('button[data-target="ups"]');
-    
-    // Check initial values
-    await expect(page.locator('#ups-status')).toHaveText('OL');
+    await expect(page.locator('.metric-card')).toHaveCount(Object.keys(mockData).length);
+    await expect(page.locator('#ups-status')).toHaveText('On Line');
     await expect(page.locator('#ups-charge')).toHaveText('100');
     await expect(page.locator('#ups-load')).toHaveText('15');
     await expect(page.locator('#ups-realpower')).toHaveText('120');
+    await expect(page.locator('.metric-card[data-metric-key="battery.runtime"] .metric-reading')).toHaveText('54 min');
 
-    // Check table rows and descriptions
-    await expect(page.locator('#row-ups-status .ups-val')).toHaveText('OL');
-    await expect(page.locator('#row-ups-status').locator('td').nth(2)).toHaveText('UPS status');
-    
-    await expect(page.locator('#row-ups-mfr .ups-val')).toHaveText('Eaton');
-    await expect(page.locator('#row-ups-mfr').locator('td').nth(2)).toHaveText('UPS manufacturer');
+    // Every card provides the original NUT variable and description.
+    await page.locator('.metric-card[data-metric-key="ups.mfr"]').click();
+    await expect(page.locator('#metric-detail-key')).toHaveText('ups.mfr');
+    await expect(page.locator('#metric-detail-description')).toHaveText('UPS manufacturer');
+    await page.locator('#metric-detail-close').click();
 
-    await expect(page.locator('#row-battery-runtime .ups-val')).toHaveText('3240');
-    await expect(page.locator('#row-battery-runtime').locator('td').nth(2)).toHaveText('Battery runtime (seconds)');
-
-    // Update mock data to simulate new reading
     mockData = {
-      "ups.status": "OB",
-      "ups.mfr": "Eaton",
-      "battery.charge": "95",
-      "battery.runtime": "1800",
-      "ups.load": "45",
-      "ups.realpower": "350",
-      "input.voltage.nominal": "230",
-      "output.voltage": "229.5"
+      ...mockData,
+      'ups.status': 'OB',
+      'battery.charge': '95',
+      'battery.runtime': '1800',
+      'ups.load': '45',
+      'ups.realpower': '350',
+      'output.voltage': '229.5',
     };
-
-    // Wait for the polling interval (2 seconds) plus some buffer
-    // and verify the UI updates
-    await expect(page.locator('#ups-status')).toHaveText('OB', { timeout: 3500 });
+    await expect(page.locator('#ups-status')).toHaveText('On Battery', { timeout: 3500 });
     await expect(page.locator('#ups-charge')).toHaveText('95');
     await expect(page.locator('#ups-load')).toHaveText('45');
     await expect(page.locator('#ups-realpower')).toHaveText('350');
-    await expect(page.locator('#row-battery-runtime .ups-val')).toHaveText('1800');
-    
-    // Check progress bars update visually
-    const chargeWidth = await page.locator('#bar-charge').evaluate((el) => el.style.width);
-    expect(chargeWidth).toBe('95%');
+    await expect(page.locator('.metric-card[data-metric-key="battery.runtime"] .metric-reading')).toHaveText('30 min');
   });
 
-  test('shows generic banner for Generic UPS', async ({ page }) => {
-    let mockData = {
-      "ups.status": "OL",
-      "ups.type": "Generic"
-    };
-
-    await page.route('**/api/ups-vars', async route => {
-      await route.fulfill({ json: mockData });
-    });
-
+  test('shows unsupported UPS banner and clears it when a supported UPS connects', async ({ page }) => {
+    let type = 'Generic';
+    await page.route('**/api/ups-vars', route => route.fulfill({
+      json: { 'ups.status': 'OL', 'ups.type': type },
+    }));
     await page.goto('http://esp32.local/');
-    await page.click('button[data-target="ups"]');
-    
     await expect(page.locator('#generic-ups-banner')).toBeVisible();
-
-    // Change to supported UPS
-    mockData = {
-      "ups.status": "OL",
-      "ups.type": "Eaton"
-    };
-    
-    // Wait for the next poll
+    type = 'Eaton';
     await expect(page.locator('#generic-ups-banner')).toBeHidden({ timeout: 3500 });
   });
 
-  test('shows -- for UPS load when the UPS does not report it (#100)', async ({ page }) => {
-    // Like the APC Smart-UPS 750L of #100: no ups.load, no ups.realpower, no input.voltage
+  test('omits unsupported/missing metrics rather than inventing 0', async ({ page }) => {
     const mockData = {
-      "ups.status": "OL",
-      "ups.mfr": "American Power Conversion",
-      "ups.model": "Smart-UPS 750",
-      "battery.charge": "100",
-      "battery.runtime": "2520",
-      "output.voltage": "230.0"
+      'ups.status': 'OL',
+      'ups.mfr': 'American Power Conversion',
+      'ups.model': 'Smart-UPS 750',
+      'battery.charge': '100',
+      'battery.runtime': '2520',
+      'output.voltage': '230.0',
     };
-
-    await page.route('**/api/ups-vars', async route => {
-      await route.fulfill({ json: mockData });
-    });
-
+    await page.route('**/api/ups-vars', route => route.fulfill({ json: mockData }));
     await page.goto('http://esp32.local/');
-    await page.click('button[data-target="ups"]');
-
-    await expect(page.locator('#ups-status')).toHaveText('OL');
-    await expect(page.locator('#ups-load')).toHaveText('--');
-    await expect(page.locator('#ups-realpower')).toHaveText('--');
-
-    const loadWidth = await page.locator('#bar-load').evaluate((el) => el.style.width);
-    expect(loadWidth).toBe('0%');
+    await expect(page.locator('.metric-card')).toHaveCount(Object.keys(mockData).length);
+    await expect(page.locator('.metric-card[data-metric-key="ups.load"]')).toHaveCount(0);
+    await expect(page.locator('.metric-card[data-metric-key="ups.realpower"]')).toHaveCount(0);
   });
 
-  test('shows 0 for UPS load 0', async ({ page }) => {
-    const mockData = {
-      "ups.status": "OL",
-      "battery.charge": "100",
-      "ups.load": "0"
-    };
-
-    await page.route('**/api/ups-vars', async route => {
-      await route.fulfill({ json: mockData });
-    });
-
+  test('shows zero values and puts primary metrics ahead of secondary data', async ({ page }) => {
+    await page.route('**/api/ups-vars', route => route.fulfill({
+      json: {
+        'ups.mfr': 'Eaton',
+        'ups.status': 'OL',
+        'ups.load': '0',
+        'battery.charge': '100',
+        'input.voltage': '121',
+        'ups.realpower': '0',
+      },
+    }));
     await page.goto('http://esp32.local/');
-    await page.click('button[data-target="ups"]');
-
-    await expect(page.locator('#ups-status')).toHaveText('OL');
     await expect(page.locator('#ups-load')).toHaveText('0');
-  });
-
-  test('sorts table rows alphabetically by parameter name', async ({ page }) => {
-    const mockData = {
-      "ups.status": "OL",
-      "battery.charge": "100",
-      "ups.mfr": "Eaton",
-      "input.voltage.nominal": "230",
-      "battery.runtime": "3240",
-      "output.voltage": "230.1"
-    };
-
-    await page.route('**/api/ups-vars', async route => {
-      await route.fulfill({ json: mockData });
-    });
-
-    await page.goto('http://esp32.local/');
-    await page.click('button[data-target="ups"]');
-
-    // Wait for the table to render
-    await page.waitForSelector('#ups-table-body tr');
-
-    // Extract all parameter names from the first column
-    const paramCells = page.locator('#ups-table-body tr td:first-child');
-    await expect(paramCells.first()).toBeVisible();
-    
-    const params = await paramCells.allInnerTexts();
-    
-    // Check they are not empty and are sorted
-    expect(params.length).toBeGreaterThan(0);
-    const expectedSorted = [...params].sort();
-    expect(params).toEqual(expectedSorted);
+    await expect(page.locator('#ups-realpower')).toHaveText('0');
+    const keys = await page.locator('.metric-card').evaluateAll(cards =>
+      cards.map(card => (card as HTMLElement).dataset.metricKey));
+    expect(keys.slice(0, 4)).toEqual(['battery.charge', 'input.voltage', 'ups.load', 'ups.status']);
+    expect(keys[keys.length - 1]).toBe('ups.mfr');
   });
 });
