@@ -891,10 +891,23 @@
 
                     <!-- UPS variables populate as compact read-only buttons from /api/ups-vars. -->
                     <div class="metrics-grid" id="metrics-grid" aria-label="Live UPS statistics">
+                        <!-- UPS Status is rendered first and always occupies an entire row. -->
                         <p class="metrics-empty" id="metrics-empty">Waiting for UPS telemetry…</p>
                     </div>
 
                 </div>
+            </div>
+
+            <div class="tab-content" id="content-ota">
+                <section class="panel ota-dashboard-panel">
+                    <div class="panel-header">
+                        <h2>Firmware Update</h2>
+                        <p>Upload and install firmware without leaving the dashboard.</p>
+                    </div>
+                    <!-- The existing authenticated /update page remains the upload handler. -->
+                    <iframe id="ota-frame" class="ota-frame" title="Firmware update"
+                        data-src="/update?embedded=1"></iframe>
+                </section>
             </div>
 
             <div class="tab-content" id="content-commands">
