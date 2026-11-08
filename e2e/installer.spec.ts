@@ -14,7 +14,7 @@ function findPython(): string {
     if (!cmd) continue;
     try {
       const version = execFileSync(cmd, ['--version'], { encoding: 'utf-8' }).trim();
-      if (/Python 3(?:\\.|$)/.test(version)) return cmd;
+      if (version.startsWith('Python 3.')) return cmd;
     } catch { /* Try the next interpreter name. */ }
   }
   throw new Error('Python 3 is required for release packaging tests.');
