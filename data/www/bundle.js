@@ -1962,13 +1962,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dot) dot.className = 'telemetry-status-dot ' + health;
         statusCard.dataset.health = health;
         const flags = String(data['ups.status'] || '').split(/\s+/);
+        const onBattery = flags.includes('OB');
+        const runtimeRaw = data['battery.runtime'];
+        const runtimeSeconds = Number(runtimeRaw);
+        const hasRuntime = runtimeRaw !== undefined && runtimeRaw !== null &&
+            String(runtimeRaw).trim() !== '' &&
+            Number.isFinite(runtimeSeconds) && runtimeSeconds >= 0;
         if (statusContext) {
-            statusContext.textContent = data._disconnected ? 'UPS disconnected' :
+            const context = data._disconnected ? 'UPS disconnected' :
                 data._loadFailed ? 'No telemetry response' :
                 data._loading ? 'Waiting for first update' :
                 flags.includes('FSD') || flags.includes('LB') ? 'UPS requires attention' :
-                flags.includes('OB') ? 'Running on battery power' :
+                onBattery ? 'Running on battery power' :
                 flags.includes('OL') ? 'On utility power' : 'Power state unknown';
+            // NUT reports battery.runtime in seconds. Only show it while on
+            // battery; an unavailable or invalid estimate must never look real.
+            const remaining = onBattery && hasRuntime &&
+                !data._disconnected && !data._loadFailed && !data._loading
+                ? metricFormat('battery.runtime', runtimeRaw, false).reading + ' remaining'
+                : '';
+            statusContext.textContent = context + (remaining ? ' · ' + remaining : '');
         }
         if (statusUpdated) {
             statusUpdated.textContent = data._loadFailed ? 'Update failed' :
