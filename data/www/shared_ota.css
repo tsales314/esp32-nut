@@ -80,6 +80,9 @@ body.ota-embedded .ota-container {
     padding: 1.15rem;
     box-sizing: border-box;
 }
+body.ota-embedded .ota-container > h2 {
+    display: none;
+}
 body.ota-embedded .btn-back {
     display: none;
 }
