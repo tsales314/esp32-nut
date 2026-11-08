@@ -44,6 +44,7 @@ async function openNetwork(page: Page, config: object, network: object, answer: 
     return route.fulfill({ status: answer.status ?? 200, json: answer.json });
   });
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.click('button[data-target="network"]');
   await expect(page.locator('h1.page-title')).toHaveText('Network');
   return posts;
