@@ -1668,6 +1668,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const metricDetailTitle = document.getElementById('metric-detail-title');
     const metricDetailValue = document.getElementById('metric-detail-value');
     const metricDetailKey = document.getElementById('metric-detail-key');
+    const metricDetailRaw = document.getElementById('metric-detail-raw-value');
     const metricDetailDescription = document.getElementById('metric-detail-description');
     const metricCards = new Map();
     let previousMetricOrder = '';
@@ -1759,8 +1760,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (value === undefined || value === null || value === '') return { reading: '--', unit: '' };
         const raw = String(value);
         if (key === 'ups.status') {
-            if (raw === 'OL') return { reading: 'On Line', unit: '' };
-            if (raw === 'OB') return { reading: 'On Battery', unit: '' };
+            const flags = raw.trim().split(/\s+/);
+            if (flags.includes('FSD')) return { reading: 'Forced Shutdown', unit: '' };
+            if (flags.includes('OB') || flags.includes('OL')) {
+                const source = flags.includes('OB') ? 'On Battery' : 'On Line';
+                return { reading: source + (flags.includes('LB') ? ' · Low Battery' : ''), unit: '' };
+            }
             return { reading: raw, unit: '' };
         }
         if (key === 'battery.runtime' && Number.isFinite(Number(raw)) && Number(raw) >= 0) {
@@ -1848,6 +1853,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // For numeric values the green dot means a live reading, not independent
         // verification that a value falls within electrical safety limits.
+        if (['input.voltage', 'input.frequency', 'input.quality'].includes(key) &&
+            String(data['ups.status'] || '').split(/\s+/).includes('OB')) return 'is-warning';
         if (key === 'ups.beeper.status' || /^(driver|device|ups.serial|ups.mfr|ups.model)/.test(key)) return 'is-muted';
         if (value === 'off' || value === 'disabled' || value === 'unknown') return 'is-muted';
         return 'is-good';
@@ -1893,6 +1900,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (metricDetailValue) metricDetailValue.textContent =
             display.reading + (display.unit ? ' ' + display.unit : '');
         if (metricDetailKey) metricDetailKey.textContent = key;
+        if (metricDetailRaw) metricDetailRaw.textContent = data[key] === undefined ||
+            data[key] === null ? 'Not reported' : String(data[key]);
         if (metricDetailDescription) metricDetailDescription.textContent =
             NUT_DESCRIPTIONS[key] || 'No description available.';
     }
