@@ -15,13 +15,15 @@
 
 <body>
     <div class="app-container">
-        <!-- Sidebar / Navigation -->
-        <aside class="sidebar">
+        <div class="nav-scrim" id="nav-scrim" hidden></div>
+        <!-- Navigation stays closed until the hamburger button is used on every viewport. -->
+        <aside class="sidebar" id="app-sidebar" aria-label="Main navigation" aria-hidden="true" inert>
             <div class="brand">
                 <div class="brand-icon">
                     <img src="logo.png" alt="Logo">
                 </div>
                 <div class="brand-name">ESP32-NUT <span id="fw-version"></span></div>
+                <button type="button" class="nav-close" id="nav-close" aria-label="Close navigation">&times;</button>
             </div>
 
             <nav class="tabs">
@@ -29,7 +31,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                     </svg>
-                    UPS Telemetry
+                    Dashboard
                 </button>
                 <button class="tab" data-target="commands">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -152,8 +154,22 @@
         <!-- Main Content Area -->
         <main class="content-area">
             <header class="topbar">
-                <h1 class="page-title">Network Configuration</h1>
-                <div class="device-id">ID: <span>-</span></div>
+                <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open navigation"
+                    aria-controls="app-sidebar" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+                <div class="topbar-titles">
+                    <div class="topbar-product">ESP32 NUT Server Bridge</div>
+                    <h1 class="page-title">Dashboard</h1>
+                </div>
+                <div class="topbar-meta">
+                    <div id="topbar-ups-status" class="topbar-status" role="status">
+                        <span class="topbar-status-dot"></span><span id="topbar-ups-label">Checking UPS</span>
+                    </div>
+                    <div class="device-id">ID: <span>-</span></div>
+                </div>
             </header>
 
             <div class="diag-banner" id="diag-banner" hidden></div>
@@ -860,7 +876,7 @@
             <div class="tab-content active" id="content-ups">
                 <div class="panel ups-panel">
                     <div class="panel-header">
-                        <h2>Real-Time Data Feed</h2>
+                        <h2>Live UPS Stats</h2>
                         <div class="polling-indicator">
                             <span class="pulse-dot"></span> Live
                         </div>
@@ -873,45 +889,11 @@
                             style="color: white; text-decoration: underline;">GitHub</a> to request support.
                     </div>
 
-                    <div class="metrics-grid">
-                        <div class="metric-card highlight">
-                            <div class="metric-label">UPS Status</div>
-                            <div class="metric-value status-online" id="ups-status">--</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Battery Charge</div>
-                            <div class="metric-value"><span id="ups-charge">--</span><span class="unit">%</span></div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar" id="bar-charge" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">UPS Load</div>
-                            <div class="metric-value"><span id="ups-load">--</span><span class="unit">%</span></div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar load" id="bar-load" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Real Power</div>
-                            <div class="metric-value"><span id="ups-realpower">--</span><span class="unit">W</span>
-                            </div>
-                        </div>
+                    <!-- UPS variables populate as compact read-only buttons from /api/ups-vars. -->
+                    <div class="metrics-grid" id="metrics-grid" aria-label="Live UPS statistics">
+                        <p class="metrics-empty" id="metrics-empty">Waiting for UPS telemetry…</p>
                     </div>
 
-                    <div class="details-table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Parameter</th>
-                                    <th>Value</th>
-                                    <th>Description</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ups-table-body">
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
             </div>
 
@@ -1222,6 +1204,22 @@
                 </div>
             </div>
 
+            <!-- Reused detail view for each read-only telemetry card. -->
+            <div id="metric-overlay" class="metric-overlay" hidden>
+                <section class="metric-detail" role="dialog" aria-modal="true" aria-labelledby="metric-detail-title"
+                    tabindex="-1">
+                    <div class="metric-detail-header">
+                        <h2 id="metric-detail-title">UPS Metric</h2>
+                        <button type="button" class="metric-detail-close" id="metric-detail-close"
+                            aria-label="Close metric details">&times;</button>
+                    </div>
+                    <div class="metric-detail-value" id="metric-detail-value">--</div>
+                    <dl class="metric-detail-fields">
+                        <dt>NUT variable</dt><dd id="metric-detail-key">—</dd>
+                        <dt>Description</dt><dd id="metric-detail-description">—</dd>
+                    </dl>
+                </section>
+            </div>
         </main>
     </div>
     <script src="bundle.js?v=1.2.0"></script>
