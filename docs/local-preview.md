@@ -34,7 +34,9 @@ To stop, press **Ctrl+C** in the terminal.
 ## What you can try
 
 - Open the hamburger menu and navigate between Dashboard, Commands,
-  UPS Settings, Network, NUT Server, Board Settings and System Logs.
+  UPS Settings, Network, NUT Server, Board Settings, System Logs and Firmware OTA.
+  Firmware OTA keeps the hamburger menu visible and uses an embedded version
+  of the normal upload page. The mock server rejects actual firmware uploads.
 - Click any live telemetry card to see its raw NUT variable and description.
 - Resize the browser or use responsive device mode in developer tools.
 - Expand **LOCAL PREVIEW · Demo controls** in the lower-right corner.
