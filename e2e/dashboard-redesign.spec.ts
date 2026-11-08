@@ -145,6 +145,40 @@ test('battery power and low charge show warning indicators, not a healthy label'
   await expect(page.locator('#telemetry-health-device')).toHaveClass(/is-warning/);
 });
 
+test('status banner shows remaining runtime only while on battery', async ({ page }) => {
+  await serveIndex(page);
+  let onBattery = true;
+  await page.route('**/api/ups-vars', route => route.fulfill({
+    json: {
+      'ups.status': onBattery ? 'OB' : 'OL',
+      'battery.runtime': '1860',
+      'battery.charge': '92',
+    },
+  }));
+  await page.goto('http://esp32.local/');
+  await expect(page.locator('#ups-status')).toHaveText('On Battery');
+  await expect(page.locator('#telemetry-status-context'))
+    .toHaveText('Running on battery power · 31 min remaining');
+
+  onBattery = false;
+  await expect(page.locator('#ups-status')).toHaveText('On Line', { timeout: 5000 });
+  await expect(page.locator('#telemetry-status-context')).toHaveText('On utility power');
+});
+
+test('low-battery status still shows a valid estimate but never invents one', async ({ page }) => {
+  await serveIndex(page);
+  let runtime = '240';
+  await page.route('**/api/ups-vars', route => route.fulfill({
+    json: { 'ups.status': 'OB LB', 'battery.runtime': runtime },
+  }));
+  await page.goto('http://esp32.local/');
+  await expect(page.locator('#telemetry-status-context'))
+    .toHaveText('UPS requires attention · 4 min remaining');
+  runtime = '-1';
+  await expect(page.locator('#telemetry-status-context'))
+    .toHaveText('UPS requires attention', { timeout: 5000 });
+});
+
 test('UPS status stays first even when the UPS does not report a status variable', async ({ page }) => {
   await serveIndex(page);
   await page.route('**/api/ups-vars', route => route.fulfill({
