@@ -2,11 +2,12 @@ import os
 import glob
 import gzip
 import subprocess
+import sys
 
 def run_inline_script():
     # Run inline scripts first
-    subprocess.run(["python", "scripts/inline_web.py"], check=True)
-    subprocess.run(["python", "scripts/inline_update.py"], check=True)
+    subprocess.run([sys.executable, "scripts/inline_web.py"], check=True)
+    subprocess.run([sys.executable, "scripts/inline_update.py"], check=True)
 
 def embed_files():
     data_dir = "data/www"
@@ -76,6 +77,19 @@ def embed_files():
     with open(hash_file, "w") as hf:
         hf.write(current_hash)
 
-if __name__ == "__main__":
+def generate_web_assets():
+    """Regenerate inline pages before writing the firmware's compressed assets."""
     run_inline_script()
     embed_files()
+
+
+# Standalone: python scripts/embed_web.py
+# PlatformIO: pre:scripts/embed_web.py runs as an SCons extra script, not as
+# __main__. The old guard silently skipped regeneration during PIO builds,
+# leaving firmware with stale checked-in index_inlined.html.
+if __name__ == "__main__":
+    generate_web_assets()
+elif "Import" in globals():
+    Import("env")
+    if not env.IsIntegrationDump():
+        generate_web_assets()
