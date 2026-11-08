@@ -2691,11 +2691,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ups = data.ups;
                 const status = ups && ups.status;
                 const disconnected = !ups || status === 'Disconnected';
+                const unknown = !disconnected && !status;
                 const stale = !!(ups && ups.stale);
                 topbarUps.className = 'topbar-status' +
-                    (disconnected ? ' is-danger' : (stale || status === 'Connecting' ? ' is-warning' : ''));
+                    (disconnected ? ' is-danger' : (unknown || stale || status === 'Connecting' ? ' is-warning' : ''));
                 topbarUpsLabel.textContent = disconnected ? 'UPS Offline' :
-                    (stale ? 'UPS Stale' : (status === 'Connecting' ? 'Connecting' : 'UPS Online'));
+                    (unknown ? 'UPS Unknown' : (stale ? 'UPS Stale' :
+                        (status === 'Connecting' ? 'Connecting' : 'UPS Online')));
             }
 
             if (lblUps && data.ups) {
