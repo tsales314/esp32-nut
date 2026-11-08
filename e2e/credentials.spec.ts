@@ -89,6 +89,7 @@ async function mockApi(page: Page) {
 /** Opens the main UI, goes to "Web Login" and waits for /api/auth/status to be applied. */
 async function openWebLogin(page: Page) {
   await page.goto(HOME);
+  await page.locator('#nav-toggle').click();
   await page.locator('.tab[data-target="weblogin"]').click();
   await expect(page.locator('#content-weblogin')).toHaveClass(/active/);
   await expect(page.locator('.page-title')).toHaveText('Web Login');
