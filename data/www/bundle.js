@@ -1707,9 +1707,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function metricIcon(key) {
+        if (key === 'battery.runtime') return 'clock';
         if (key.startsWith('battery.')) return 'battery';
         if (key === 'ups.load') return 'load';
-        if (key === 'battery.runtime') return 'clock';
         if (key.includes('voltage')) return 'voltage';
         if (key.includes('frequency')) return 'wave';
         if (key.includes('temperature')) return 'temperature';
@@ -1769,6 +1769,14 @@ document.addEventListener('DOMContentLoaded', () => {
         value.className = 'metric-value';
         const reading = document.createElement('span');
         reading.className = 'metric-reading';
+        // Retain stable selectors for telemetry consumers and existing tests.
+        const legacyIds = {
+            'ups.status': 'ups-status',
+            'battery.charge': 'ups-charge',
+            'ups.load': 'ups-load',
+            'ups.realpower': 'ups-realpower'
+        };
+        if (legacyIds[key]) reading.id = legacyIds[key];
         const unit = document.createElement('span');
         unit.className = 'metric-unit';
         value.append(reading, unit);
