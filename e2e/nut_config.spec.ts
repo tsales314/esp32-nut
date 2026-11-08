@@ -20,6 +20,7 @@ test.describe('NUT Configuration UI', () => {
     await page.goto('http://esp32.local/');
     
     // Switch to NUT tab
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="nut"]');
     
     // Wait for panel
@@ -41,6 +42,7 @@ test.describe('NUT Configuration UI', () => {
   // US-082: the UPS name is never empty and only printable ASCII without spaces
   async function openNutTab(page: Page) {
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="nut"]');
     await expect(page.locator('#content-nut')).toHaveClass(/active/);
   }
