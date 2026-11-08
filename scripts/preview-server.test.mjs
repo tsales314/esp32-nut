@@ -38,6 +38,8 @@ test('serves the actual UI and the preview-only control script', async () => {
     const html = await res.text();
     assert.match(html, /id="metrics-grid"/);
     assert.match(html, /id="nav-toggle"/);
+    assert.match(html, /id="ota-frame"/);
+    assert.match(html, /data-src="\/update\?embedded=1"/);
     assert.match(html, /\/__preview\/controls\.js/);
     const controls = await fetch(origin + '/__preview/controls.js');
     assert.equal(controls.status, 200);
@@ -45,6 +47,11 @@ test('serves the actual UI and the preview-only control script', async () => {
     const bundle = await fetch(origin + '/bundle.js?v=1.2.0');
     assert.equal(bundle.status, 200);
     assert.match(await bundle.text(), /function renderMetrics/);
+    const ota = await fetch(origin + '/update?embedded=1');
+    assert.equal(ota.status, 200);
+    const otaHtml = await ota.text();
+    assert.match(otaHtml, /id="fileInput"/);
+    assert.doesNotMatch(otaHtml, /__preview\/controls\.js/);
 });
 
 test('simulated variables update without contacting any device', async () => {
