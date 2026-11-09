@@ -3954,7 +3954,7 @@ body.auth-page {
     #content-ups .metrics-grid.telemetry-layout {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-items: start;
+        align-items: stretch;
         gap: 1rem;
     }
     #content-ups .metrics-grid.telemetry-layout > .telemetry-status,
