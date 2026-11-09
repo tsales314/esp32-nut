@@ -87,6 +87,7 @@ function record(route: { request(): { method(): string; headers(): Record<string
 
 async function openSettingsTab(page: Page) {
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.locator('button.tab[data-target="settings"]').click();
   await expect(page.locator('#content-settings')).toHaveClass(/active/);
 }
@@ -162,6 +163,7 @@ test.describe('UPS Settings page (US-068)', () => {
     await expect(thirdTab).toHaveText('UPS Settings');
     expect(mock.getHits).toBe(0);
 
+    await page.locator('#nav-toggle').click();
     await thirdTab.click();
     await expect(page.locator('.page-title')).toHaveText('UPS Settings');
     await expect(page.locator('#content-settings')).toBeVisible();
@@ -469,13 +471,17 @@ ${SET_CONFIRM_WARNING}`);
 
     // Back to the page with a catalog, then the GET fails
     mock.variables = eaton3sCatalog();
+    await page.locator('#nav-toggle').click();
     await page.locator('button.tab[data-target="ups"]').click();
+    await page.locator('#nav-toggle').click();
     await page.locator('button.tab[data-target="settings"]').click();
     await expect(page.locator('.set-row')).toHaveCount(7);
     await expect(page.locator('#set-empty')).toBeHidden();
 
     mock.variablesStatus = 500;
+    await page.locator('#nav-toggle').click();
     await page.locator('button.tab[data-target="ups"]').click();
+    await page.locator('#nav-toggle').click();
     await page.locator('button.tab[data-target="settings"]').click();
     await expect(page.locator('#set-empty')).toBeVisible();
     await expect(page.locator('#set-list')).toBeHidden();

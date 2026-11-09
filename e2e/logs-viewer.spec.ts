@@ -26,6 +26,7 @@ test.describe('System Logs View', () => {
     await page.goto('http://esp32.local/');
 
     // 2. Click on the "System Logs" tab
+    await page.locator('#nav-toggle').click();
     await page.click('[data-target="logs"]');
 
     // 3. Wait for the terminal to update
@@ -44,6 +45,7 @@ test.describe('System Logs View', () => {
     await page.goto('http://esp32.local/');
 
     // 2. Click on the "System Logs" tab
+    await page.locator('#nav-toggle').click();
     await page.click('[data-target="logs"]');
 
     const toggleAutoRefresh = page.locator('#toggle-auto-refresh');
@@ -80,6 +82,7 @@ test.describe('System Logs View', () => {
     });
 
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('[data-target="logs"]');
 
     const btnExportUsb = page.locator('#link-export-usb');
@@ -117,6 +120,7 @@ async function mockLogs(page: Page, replies: LogsReply[]): Promise<{ calls: () =
 
 async function openLogs(page: Page) {
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.click('[data-target="logs"]');
 }
 

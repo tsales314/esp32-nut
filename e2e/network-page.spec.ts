@@ -24,6 +24,7 @@ async function openNetwork(page: Page, config: object, network: object) {
   await page.route('**/api/config', route => route.fulfill({ json: config }));
   await page.route('**/api/system-status', route => route.fulfill(statusOf(network)));
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.click('button[data-target="network"]');
   await expect(page.locator('h1.page-title')).toHaveText('Network');
 }
@@ -105,6 +106,7 @@ test.describe('Network page (US-112)', () => {
       : route.abort('connectionrefused'));
     await page.clock.install();
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="network"]');
     await expect(field(eth(page), 'ip')).toHaveText('192.168.1.50');
     // while the board answers the badge is enough: no "updated N s ago" counter
@@ -133,6 +135,7 @@ test.describe('Network page (US-112)', () => {
     await page.route('**/api/system-status', route => route.fulfill(statusOf({ ...ETH_UP, ip })));
     await page.clock.install();
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="network"]');
     await expect(field(eth(page), 'ip')).toHaveText('192.168.1.50');
 
@@ -155,6 +158,7 @@ test.describe('Network page (US-112)', () => {
       json: { wifi: { status: ssid }, network: { type: 'wifi', state: 'connecting', ssid }, ups: { status: 'Eaton 3S' } },
     }));
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="network"]');
 
     // innerText follows the CSS white-space rule: without pre-wrap the spaces collapse to one

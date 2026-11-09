@@ -7,6 +7,20 @@ import path from 'path';
 const INSTALLER = path.resolve(__dirname, '../web-installer');
 const indexUrl = `file:///${path.join(INSTALLER, 'index.html').replace(/\\/g, '/')}`;
 
+// Python is commonly named python3 on macOS/Linux and python on Windows.
+// The packaging tests should not depend on either executable name.
+function findPython(): string {
+  for (const cmd of [process.env.PYTHON, 'python3', 'python']) {
+    if (!cmd) continue;
+    try {
+      const version = execFileSync(cmd, ['--version'], { encoding: 'utf-8' }).trim();
+      if (version.startsWith('Python 3.')) return cmd;
+    } catch { /* Try the next interpreter name. */ }
+  }
+  throw new Error('Python 3 is required for release packaging tests.');
+}
+const PYTHON = findPython();
+
 function readManifest(dir: string, name: string): any {
   return JSON.parse(fs.readFileSync(path.join(dir, name), 'utf-8'));
 }
@@ -122,10 +136,10 @@ test.describe('ESP Web Installer', () => {
         'esp32-p4-eth-v1': 'esp32-nut-v9.9.9-esp32-p4-eth-v1.zip',
       };
       for (const env of Object.keys(expected)) {
-        execFileSync('python', [script, 'package', '--env', env, '--version', 'v9.9.9',
+        execFileSync(PYTHON, [script, 'package', '--env', env, '--version', 'v9.9.9',
           '--build-dir', build, '--out', path.join(tmp, 'pkg', env), '--zip-dir', zips,
           '--boot-app0', path.join(build, 'boot_app0.bin')]);
-        const listing = execFileSync('python', ['-m', 'zipfile', '-l', path.join(zips, expected[env])]).toString();
+        const listing = execFileSync(PYTHON, ['-m', 'zipfile', '-l', path.join(zips, expected[env])]).toString();
         const names = listing.split(/\r?\n/).slice(1).map(l => l.split(/\s+/)[0]).filter(Boolean).sort();
         expect(names).toEqual(['README.txt', 'boot_app0.bin', 'bootloader.bin', 'firmware.bin',
           'firmware.factory.bin', 'manifest.json', 'partitions.bin']);
@@ -133,7 +147,7 @@ test.describe('ESP Web Installer', () => {
       expect(fs.readdirSync(zips).sort()).toEqual(Object.values(expected).sort());
 
       // A branch name as version (manual run from feature/...) is refused, not half-written
-      expect(() => execFileSync('python', [script, 'package', '--env', 'esp32-s3-standard',
+      expect(() => execFileSync(PYTHON, [script, 'package', '--env', 'esp32-s3-standard',
         '--version', 'feature/x', '--build-dir', build, '--out', path.join(tmp, 'bad'), '--zip-dir', zips,
         '--boot-app0', path.join(build, 'boot_app0.bin')], { stdio: 'pipe' })).toThrow();
     } finally {
@@ -144,7 +158,7 @@ test.describe('ESP Web Installer', () => {
   test('the committed manifests are the ones scripts/release_package.py generates', () => {
     const out = fs.mkdtempSync(path.join(os.tmpdir(), 'esp32-nut-manifests-'));
     try {
-      execFileSync('python', [path.resolve(__dirname, '../scripts/release_package.py'), 'manifests',
+      execFileSync(PYTHON, [path.resolve(__dirname, '../scripts/release_package.py'), 'manifests',
         '--version', 'latest', '--out', out]);
       const generated = fs.readdirSync(out).sort();
       expect(generated).toEqual(['manifest-esp32-p4-eth-v1.json', 'manifest-esp32-p4-eth.json', 'manifest.json']);

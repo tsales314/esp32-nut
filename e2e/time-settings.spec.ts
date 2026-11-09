@@ -89,6 +89,7 @@ async function routeTime(page: Page, mock: Mock) {
 
 async function openBoard(page: Page) {
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.locator('button.tab[data-target="board"]').click();
   await expect(page.locator('#content-board')).toHaveClass(/active/);
   await expect(page.locator('#time-section')).toBeVisible();
@@ -203,6 +204,7 @@ test.describe('Time section (US-117): expired session', () => {
     await serveLogin(page);
     await page.route('**/api/time', route => route.fulfill({ status: 401, json: { error: 'unauthorized' } }));
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('[data-target="board"]');
     await expect(page).toHaveURL('http://esp32.local/login?expired=1');
   });
