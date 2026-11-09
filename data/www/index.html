@@ -172,7 +172,9 @@
                 </div>
             </header>
 
-            <div class="diag-banner" id="diag-banner" hidden></div>
+            <!-- Scrollable page body; the title and menu above stay visible. -->
+            <div class="content-scroll" id="content-scroll">
+                <div class="diag-banner" id="diag-banner" hidden></div>
 
             <!-- US-112: one .net-section per link, shown from /api/config network.links (no per-board
                  code). A section that is not about a link (Hostname, US-113) is one more
@@ -1307,6 +1309,8 @@
                     </div>
                 </div>
             </div>
+
+            </div><!-- /.content-scroll -->
 
             <!-- Reused detail view for every clickable telemetry list row. -->
             <div id="metric-overlay" class="metric-overlay" hidden>
