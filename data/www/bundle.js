@@ -1814,6 +1814,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusCard = document.querySelector('#metrics-grid .telemetry-status');
     const statusContext = document.getElementById('telemetry-status-context');
     const statusUpdated = document.getElementById('telemetry-last-updated');
+    const highlightCards = metricsGrid ? Array.from(
+        metricsGrid.querySelectorAll('.telemetry-highlight[data-metric-key]')) : [];
 
     function metricGroup(key) {
         if (key.startsWith('input.')) return 'input';
@@ -1921,7 +1923,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (metricsGrid) {
         metricsGrid.addEventListener('click', (event) => {
-            const row = event.target.closest('.metric-card');
+            const row = event.target.closest('.metric-card, .telemetry-highlight');
             if (!row) return;
             metricReturnFocus = row;
             selectedMetricKey = row.dataset.metricKey;
@@ -1989,6 +1991,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         statusCard.setAttribute('aria-label', 'UPS Status: ' +
             formatted.reading + '. View raw NUT details');
+    }
+
+    function updateHighlights(data) {
+        for (const card of highlightCards) {
+            const key = card.dataset.metricKey;
+            const raw = data[key];
+            const hasReading = raw !== undefined && raw !== null && raw !== '' &&
+                !data._disconnected && !data._loadFailed && !data._loading;
+            const formatted = hasReading
+                ? metricFormat(key, raw, false, data) : { reading: '—', unit: '' };
+            const health = hasReading ? metricHealth(key, raw, data) : 'is-muted';
+            const value = card.querySelector('.telemetry-highlight-value');
+            const unit = card.querySelector('.telemetry-highlight-unit');
+            const dot = card.querySelector('.telemetry-highlight-health');
+            if (value) value.textContent = formatted.reading;
+            if (unit) unit.textContent = formatted.unit;
+            if (dot) dot.className = 'telemetry-highlight-health ' + health;
+            card.dataset.health = health;
+            card.setAttribute('aria-label', metricName(key) + ': ' +
+                (hasReading ? formatted.reading + (formatted.unit ? ' ' + formatted.unit : '') :
+                    'Not reported') + '. View details');
+        }
     }
 
     function updateGroupHealth(group, keys, data) {
@@ -2072,6 +2096,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateGroupHealth(group, groups[group], data);
         }
         updateStatusBanner(data);
+        updateHighlights(data);
         updateMetricDetail();
     }
 
