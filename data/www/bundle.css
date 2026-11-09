@@ -4006,3 +4006,34 @@ body.auth-page {
 @media (prefers-reduced-motion: reduce) {
     #content-ups .telemetry-highlight { transition: none; }
 }
+
+
+/* The shell owns the fixed-height header; only the page body scrolls.
+   This avoids Safari and other browsers scrolling the hamburger/title away. */
+.content-area {
+    overflow: hidden;
+}
+.topbar {
+    flex-shrink: 0;
+}
+.content-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: 1.5rem;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+@media (max-width: 768px) {
+    /* Keep toolbar clearance inside the *scrollable* body, not below it. */
+    .content-area {
+        padding-bottom: 0;
+    }
+    .content-scroll {
+        padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+        scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+    }
+}
