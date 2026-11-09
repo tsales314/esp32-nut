@@ -3891,10 +3891,11 @@ body.auth-page {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: .3rem;
     min-width: 0;
-    min-height: 113px;
-    padding: .95rem 1.05rem;
+    min-height: 84px;
+    padding: .7rem .95rem;
     border: 1px solid rgba(118, 143, 162, .40);
     border-radius: 12px;
     color: var(--text-primary);
@@ -3980,8 +3981,8 @@ body.auth-page {
         gap: .55rem;
     }
     #content-ups .telemetry-highlight {
-        min-height: 91px;
-        padding: .72rem .8rem;
+        min-height: 76px;
+        padding: .6rem .75rem;
         border-radius: 10px;
     }
     #content-ups .telemetry-highlight-label { font-size: .69rem; }
