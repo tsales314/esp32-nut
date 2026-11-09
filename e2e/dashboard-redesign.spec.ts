@@ -65,6 +65,13 @@ test('desktop: status banner and compact Output, Input, Device Details lists', a
   const highlightYs = await highlights.evaluateAll(items =>
     items.map(el => el.getBoundingClientRect().top));
   expect(Math.max(...highlightYs) - Math.min(...highlightYs)).toBeLessThan(2);
+  const tileSpacing = await highlights.first().evaluate(tile => {
+    const label = tile.querySelector('.telemetry-highlight-label')!.getBoundingClientRect();
+    const value = tile.querySelector('.telemetry-highlight-value-wrap')!.getBoundingClientRect();
+    return { height: tile.getBoundingClientRect().height, gap: value.top - label.bottom };
+  });
+  expect(tileSpacing.gap).toBeLessThanOrEqual(8);
+  expect(tileSpacing.height).toBeLessThanOrEqual(95);
 
   const banner = page.locator('.telemetry-status');
   await expect(banner.locator('#ups-status')).toHaveText('On Line');
