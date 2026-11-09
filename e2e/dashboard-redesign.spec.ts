@@ -38,6 +38,31 @@ test('desktop: status banner and compact Output, Input, Device Details lists', a
     nodes.map(node => (node as HTMLElement).dataset.group));
   expect(order).toEqual(['output', 'input', 'device']);
 
+  // Large desktop windows use two balanced columns for the power lists,
+  // with the status, highlights and device panel spanning both columns.
+  const outputRect = await page.locator('.telemetry-section[data-group="output"]')
+    .boundingBox();
+  const inputRect = await page.locator('.telemetry-section[data-group="input"]')
+    .boundingBox();
+  const deviceRect = await page.locator('.telemetry-section[data-group="device"]')
+    .boundingBox();
+  expect(outputRect).not.toBeNull();
+  expect(inputRect).not.toBeNull();
+  expect(deviceRect).not.toBeNull();
+  expect(Math.abs(outputRect!.y - inputRect!.y)).toBeLessThan(2);
+  expect(inputRect!.x).toBeGreaterThan(outputRect!.x + outputRect!.width - 2);
+  expect(deviceRect!.width).toBeGreaterThan(outputRect!.width * 1.9);
+
+  const highlights = page.locator('.telemetry-highlight');
+  await expect(highlights).toHaveCount(4);
+  await expect(page.locator('.telemetry-highlight[data-metric-key="ups.load"] .telemetry-highlight-value')).toHaveText('24');
+  await expect(page.locator('.telemetry-highlight[data-metric-key="battery.charge"] .telemetry-highlight-value')).toHaveText('98');
+  await expect(page.locator('.telemetry-highlight[data-metric-key="ups.realpower"] .telemetry-highlight-value')).toHaveText('0');
+  await expect(page.locator('.telemetry-highlight[data-metric-key="battery.runtime"] .telemetry-highlight-value')).toHaveText('2 h 58 m');
+  const highlightYs = await highlights.evaluateAll(items =>
+    items.map(el => el.getBoundingClientRect().top));
+  expect(Math.max(...highlightYs) - Math.min(...highlightYs)).toBeLessThan(2);
+
   const banner = page.locator('.telemetry-status');
   await expect(banner.locator('#ups-status')).toHaveText('On Line');
   await expect(page.locator('#telemetry-status-context')).toHaveText('On utility power');
@@ -59,6 +84,29 @@ test('desktop: status banner and compact Output, Input, Device Details lists', a
     el.getBoundingClientRect().height)).toBeLessThan(46);
   await expect(page.locator('#nav-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('#app-sidebar')).toHaveAttribute('aria-hidden', 'true');
+});
+
+test('medium desktop windows stack Output and Input vertically', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await openDashboard(page);
+  const outputRect = await page.locator('.telemetry-section[data-group="output"]').boundingBox();
+  const inputRect = await page.locator('.telemetry-section[data-group="input"]').boundingBox();
+  expect(outputRect).not.toBeNull();
+  expect(inputRect).not.toBeNull();
+  expect(inputRect!.y).toBeGreaterThan(outputRect!.y + outputRect!.height - 2);
+  const overflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('summary tiles open existing read-only metric details', async ({ page }) => {
+  await openDashboard(page);
+  await page.locator('.telemetry-highlight[data-metric-key="ups.load"]').click();
+  await expect(page.locator('#metric-overlay')).toBeVisible();
+  await expect(page.locator('#metric-detail-key')).toHaveText('ups.load');
+  await expect(page.locator('#metric-detail-value')).toHaveText('24 %');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#metric-overlay')).toBeHidden();
 });
 
 test('hamburger opens and closes navigation; existing pages still work', async ({ page }) => {
@@ -99,6 +147,12 @@ for (const width of [320, 375, 390, 428]) {
     await openDashboard(page);
     const layout = page.locator('#metrics-grid');
     await expect(page.locator('.telemetry-section')).toHaveCount(3);
+    await expect(page.locator('.telemetry-highlight')).toHaveCount(4);
+    const topTiles = await page.locator('.telemetry-highlight').evaluateAll(items =>
+      items.map(el => el.getBoundingClientRect().top));
+    expect(topTiles[0]).toBeCloseTo(topTiles[1], 0);
+    expect(topTiles[2]).toBeCloseTo(topTiles[3], 0);
+    expect(topTiles[2]).toBeGreaterThan(topTiles[0] + 45);
     const mainWidth = await layout.evaluate(el => el.getBoundingClientRect().width);
     const statusWidth = await page.locator('.telemetry-status').evaluate(el => el.getBoundingClientRect().width);
     expect(statusWidth).toBeGreaterThan(mainWidth * .96);
@@ -111,6 +165,28 @@ for (const width of [320, 375, 390, 428]) {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+test('mobile Safari-style scroll keeps last device reading clear of bottom browser controls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 667 });
+  await openDashboard(page);
+  const scroller = page.locator('.content-area');
+  await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  const geometry = await page.evaluate(() => {
+    const area = document.querySelector('.content-area')!;
+    const last = document.querySelector('#telemetry-list-device .telemetry-row:last-child')!;
+    return {
+      bottomClearance: area.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom,
+      paddingBottom: parseFloat(getComputedStyle(area).paddingBottom),
+      scrollRange: area.scrollHeight - area.clientHeight,
+      appHeight: document.querySelector('.app-container')!.getBoundingClientRect().height,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(geometry.scrollRange).toBeGreaterThan(0);
+  expect(geometry.paddingBottom).toBeGreaterThanOrEqual(110);
+  expect(geometry.bottomClearance).toBeGreaterThanOrEqual(90);
+  expect(geometry.appHeight).toBeLessThanOrEqual(geometry.viewportHeight + 2);
+});
 
 test('sections collapse independently and remain collapsed while live polling', async ({ page }) => {
   await openDashboard(page);
