@@ -176,13 +176,33 @@ for (const width of [320, 375, 390, 428]) {
   });
 }
 
+for (const width of [390, 1440]) {
+  test('fixed topbar stays visible as dashboard scrolls at ' + width + 'px', async ({ page }) => {
+    await page.setViewportSize({ width, height: 500 });
+    await openDashboard(page);
+    const header = page.locator('.topbar');
+    const scroller = page.locator('.content-scroll');
+    const initial = await header.boundingBox();
+    expect(initial).not.toBeNull();
+    await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    const scrollTop = await scroller.evaluate(el => el.scrollTop);
+    expect(scrollTop).toBeGreaterThan(0);
+    const after = await header.boundingBox();
+    expect(after).not.toBeNull();
+    expect(Math.abs(after!.y - initial!.y)).toBeLessThan(2);
+    await expect(page.locator('#nav-toggle')).toBeInViewport();
+    await page.locator('#nav-toggle').click();
+    await expect(page.locator('#app-sidebar')).toHaveClass(/is-open/);
+  });
+}
+
 test('mobile Safari-style scroll keeps last device reading clear of bottom browser controls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 667 });
   await openDashboard(page);
-  const scroller = page.locator('.content-area');
+  const scroller = page.locator('.content-scroll');
   await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
   const geometry = await page.evaluate(() => {
-    const area = document.querySelector('.content-area')!;
+    const area = document.querySelector('.content-scroll')!;
     const last = document.querySelector('#telemetry-list-device .telemetry-row:last-child')!;
     return {
       bottomClearance: area.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom,
