@@ -51,6 +51,9 @@ test('desktop: status banner and compact Output, Input, Device Details lists', a
   expect(deviceRect).not.toBeNull();
   expect(Math.abs(outputRect!.y - inputRect!.y)).toBeLessThan(2);
   expect(inputRect!.x).toBeGreaterThan(outputRect!.x + outputRect!.width - 2);
+  // Grid row height follows the longer telemetry list; the shorter Input
+  // panel fills its entire half so desktop borders line up visually.
+  expect(Math.abs(outputRect!.height - inputRect!.height)).toBeLessThan(2);
   expect(deviceRect!.width).toBeGreaterThan(outputRect!.width * 1.9);
 
   const highlights = page.locator('.telemetry-highlight');
