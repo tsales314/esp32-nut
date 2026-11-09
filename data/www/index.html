@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ESP32 NUT Server | Config</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 
@@ -903,6 +903,45 @@
                                 <span id="telemetry-last-updated">Not yet updated</span>
                             </span>
                         </button>
+                        <!-- High-priority live readings; the full NUT lists remain below. -->
+                        <section class="telemetry-highlights" aria-label="Key UPS readings">
+                            <button type="button" class="telemetry-highlight" data-metric-key="ups.load"
+                                aria-label="UPS Load: waiting for telemetry">
+                                <span class="telemetry-highlight-label">UPS Load</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="telemetry-highlight" data-metric-key="battery.charge"
+                                aria-label="Battery Charge: waiting for telemetry">
+                                <span class="telemetry-highlight-label">Battery Charge</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="telemetry-highlight" data-metric-key="ups.realpower"
+                                aria-label="Output Power: waiting for telemetry">
+                                <span class="telemetry-highlight-label">Output Power</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="telemetry-highlight" data-metric-key="battery.runtime"
+                                aria-label="Runtime: waiting for telemetry">
+                                <span class="telemetry-highlight-label">Runtime</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                        </section>
                         <section class="telemetry-section" data-group="output" aria-label="Output telemetry">
                             <h3 class="telemetry-section-heading">
                                 <button type="button" class="telemetry-section-toggle" data-group="output"
