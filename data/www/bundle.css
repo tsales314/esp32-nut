@@ -3875,3 +3875,133 @@ body.auth-page {
     #content-ups .telemetry-layout .telemetry-row,
     #content-ups .telemetry-section-chevron { transition: none; }
 }
+
+
+/* ---- Key metrics, wide-screen dual panels and iOS Safari bottom-toolbar safety ---- */
+#content-ups .telemetry-highlights {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .8rem;
+    min-width: 0;
+    width: 100%;
+}
+#content-ups .telemetry-highlight {
+    appearance: none;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    min-width: 0;
+    min-height: 113px;
+    padding: .95rem 1.05rem;
+    border: 1px solid rgba(118, 143, 162, .40);
+    border-radius: 12px;
+    color: var(--text-primary);
+    background: linear-gradient(130deg, rgba(34, 55, 72, .73), rgba(12, 21, 33, .91));
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+}
+#content-ups .telemetry-highlight:hover {
+    border-color: rgba(0, 240, 255, .57);
+    background: rgba(0, 240, 255, .08);
+}
+#content-ups .telemetry-highlight:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+#content-ups .telemetry-highlight-label {
+    display: block;
+    max-width: calc(100% - 12px);
+    font: 600 .76rem/1.3 var(--font-heading);
+    color: var(--text-secondary);
+}
+#content-ups .telemetry-highlight-value-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .35rem;
+    min-width: 0;
+}
+#content-ups .telemetry-highlight-value {
+    font: 650 clamp(1.25rem, 2vw, 1.85rem)/1.15 var(--font-heading);
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+#content-ups .telemetry-highlight-unit {
+    font: .81rem/1.3 var(--font-mono);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+#content-ups .telemetry-highlight-health {
+    position: absolute;
+    top: 1.06rem;
+    right: 1rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #718697;
+}
+#content-ups .telemetry-highlight-health.is-good { background: var(--success, #39d77e); }
+#content-ups .telemetry-highlight-health.is-warning { background: var(--warning, #f2c94c); }
+#content-ups .telemetry-highlight-health.is-danger { background: var(--danger, #ff5167); }
+#content-ups .telemetry-highlight-health.is-muted { background: #718697; }
+
+/* Pair Output and Input once both panels have enough width for their labels. */
+@media (min-width: 1050px) {
+    #content-ups .metrics-grid.telemetry-layout {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        gap: 1rem;
+    }
+    #content-ups .metrics-grid.telemetry-layout > .telemetry-status,
+    #content-ups .metrics-grid.telemetry-layout > .telemetry-highlights,
+    #content-ups .metrics-grid.telemetry-layout > .telemetry-section[data-group="device"] {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Safari's expanding lower toolbar changes the visual viewport. Use dynamic
+   viewport units for the app shell and a real scrollable tail inside the
+   content pane. Padding is part of the scroll area, unlike a fixed footer. */
+@supports (height: 100dvh) {
+    body, .app-container { height: 100dvh; }
+}
+.content-area {
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 768px) {
+    #content-ups .telemetry-highlights {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .55rem;
+    }
+    #content-ups .telemetry-highlight {
+        min-height: 91px;
+        padding: .72rem .8rem;
+        border-radius: 10px;
+    }
+    #content-ups .telemetry-highlight-label { font-size: .69rem; }
+    #content-ups .telemetry-highlight-value { font-size: 1.33rem; }
+    #content-ups .telemetry-highlight-unit { font-size: .72rem; }
+    #content-ups .telemetry-highlight-health { top: .82rem; right: .73rem; width: 8px; height: 8px; }
+    .content-area {
+        padding-top: max(.9rem, calc(env(safe-area-inset-top, 0px) + .35rem));
+        padding-right: max(.8rem, calc(env(safe-area-inset-right, 0px) + .6rem));
+        padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+        padding-left: max(.8rem, calc(env(safe-area-inset-left, 0px) + .6rem));
+        scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+        overscroll-behavior-y: contain;
+    }
+}
+@media (max-width: 360px) {
+    #content-ups .telemetry-highlight { padding: .65rem .65rem; }
+    #content-ups .telemetry-highlight-label { font-size: .64rem; }
+    #content-ups .telemetry-highlight-value { font-size: 1.18rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #content-ups .telemetry-highlight { transition: none; }
+}
