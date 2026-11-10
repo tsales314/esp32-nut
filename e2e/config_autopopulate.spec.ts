@@ -23,6 +23,7 @@ test.describe('Config Auto-populate', () => {
 
         // Navigate to the app
         await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target=\"network\"]');
 
         // Verify SSID field is populated
@@ -31,6 +32,7 @@ test.describe('Config Auto-populate', () => {
 
         // Verify NUT username is populated in its tab
         const nutTab = page.locator('button.tab[data-target="nut"]');
+        await page.locator('#nav-toggle').click();
         await nutTab.click();
 
         const nutUsernameInput = page.locator('#nut-username');
@@ -54,6 +56,7 @@ test.describe('Config Auto-populate', () => {
 
         // Navigate to the app
         await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target=\"network\"]');
 
         // Verify SSID field remains empty

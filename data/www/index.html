@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ESP32 NUT Server | Config</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 
@@ -15,13 +15,15 @@
 
 <body>
     <div class="app-container">
-        <!-- Sidebar / Navigation -->
-        <aside class="sidebar">
+        <div class="nav-scrim" id="nav-scrim" hidden></div>
+        <!-- Navigation stays closed until the hamburger button is used on every viewport. -->
+        <aside class="sidebar" id="app-sidebar" aria-label="Main navigation" aria-hidden="true" inert>
             <div class="brand">
                 <div class="brand-icon">
                     <img src="logo.png" alt="Logo">
                 </div>
                 <div class="brand-name">ESP32-NUT <span id="fw-version"></span></div>
+                <button type="button" class="nav-close" id="nav-close" aria-label="Close navigation">&times;</button>
             </div>
 
             <nav class="tabs">
@@ -29,7 +31,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                     </svg>
-                    UPS Telemetry
+                    Dashboard
                 </button>
                 <button class="tab" data-target="commands">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -152,11 +154,27 @@
         <!-- Main Content Area -->
         <main class="content-area">
             <header class="topbar">
-                <h1 class="page-title">Network Configuration</h1>
-                <div class="device-id">ID: <span>-</span></div>
+                <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open navigation"
+                    aria-controls="app-sidebar" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+                <div class="topbar-titles">
+                    <div class="topbar-product">ESP32 NUT Server Bridge</div>
+                    <h1 class="page-title">Dashboard</h1>
+                </div>
+                <div class="topbar-meta">
+                    <div id="topbar-ups-status" class="topbar-status" role="status">
+                        <span class="topbar-status-dot"></span><span id="topbar-ups-label">Checking UPS</span>
+                    </div>
+                    <div class="device-id">ID: <span>-</span></div>
+                </div>
             </header>
 
-            <div class="diag-banner" id="diag-banner" hidden></div>
+            <!-- Scrollable page body; the title and menu above stay visible. -->
+            <div class="content-scroll" id="content-scroll">
+                <div class="diag-banner" id="diag-banner" hidden></div>
 
             <!-- US-112: one .net-section per link, shown from /api/config network.links (no per-board
                  code). A section that is not about a link (Hostname, US-113) is one more
@@ -1028,7 +1046,7 @@
             <div class="tab-content active" id="content-ups">
                 <div class="panel ups-panel">
                     <div class="panel-header">
-                        <h2>Real-Time Data Feed</h2>
+                        <h2>Live UPS Telemetry</h2>
                         <div class="polling-indicator">
                             <span class="pulse-dot"></span> Live
                         </div>
@@ -1041,46 +1059,116 @@
                             style="color: white; text-decoration: underline;">GitHub</a> to request support.
                     </div>
 
-                    <div class="metrics-grid">
-                        <div class="metric-card highlight">
-                            <div class="metric-label">UPS Status</div>
-                            <div class="metric-value status-online" id="ups-status">--</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Battery Charge</div>
-                            <div class="metric-value"><span id="ups-charge">--</span><span class="unit">%</span></div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar" id="bar-charge" style="width: 0%"></div>
+                    <!-- The status row is permanent. Dynamic NUT variables are grouped below it. -->
+                    <div class="metrics-grid telemetry-layout" id="metrics-grid" aria-label="Live UPS statistics">
+                        <button type="button" class="metric-card metric-card--status telemetry-status"
+                            data-metric-key="ups.status" aria-label="UPS Status: Checking UPS">
+                            <span class="telemetry-status-dot is-muted" aria-hidden="true"></span>
+                            <span class="telemetry-status-main">
+                                <span class="telemetry-status-label">UPS Status</span>
+                                <span class="metric-value"><span class="metric-reading" id="ups-status">Checking UPS…</span></span>
+                            </span>
+                            <span class="telemetry-status-aside">
+                                <span id="telemetry-status-context">Waiting for UPS telemetry</span>
+                                <span id="telemetry-last-updated">Not yet updated</span>
+                            </span>
+                        </button>
+                        <!-- High-priority live readings; the full NUT lists remain below. -->
+                        <section class="telemetry-highlights" aria-label="Key UPS readings">
+                            <button type="button" class="telemetry-highlight" data-metric-key="ups.load"
+                                aria-label="UPS Load: waiting for telemetry">
+                                <span class="telemetry-highlight-label">UPS Load</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="telemetry-highlight" data-metric-key="battery.charge"
+                                aria-label="Battery Charge: waiting for telemetry">
+                                <span class="telemetry-highlight-label">Battery Charge</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="telemetry-highlight" data-metric-key="ups.realpower"
+                                aria-label="Output Power: waiting for telemetry">
+                                <span class="telemetry-highlight-label">Output Power</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="telemetry-highlight" data-metric-key="battery.runtime"
+                                aria-label="Runtime: waiting for telemetry">
+                                <span class="telemetry-highlight-label">Runtime</span>
+                                <span class="telemetry-highlight-value-wrap">
+                                    <span class="telemetry-highlight-value">--</span>
+                                    <span class="telemetry-highlight-unit"></span>
+                                </span>
+                                <span class="telemetry-highlight-health" aria-hidden="true"></span>
+                            </button>
+                        </section>
+                        <section class="telemetry-section" data-group="output" aria-label="Output telemetry">
+                            <h3 class="telemetry-section-heading">
+                                <button type="button" class="telemetry-section-toggle" data-group="output"
+                                    aria-expanded="true" aria-controls="telemetry-list-output">
+                                    <span class="telemetry-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v7M16 3v7M6 10h12v3a6 6 0 0 1-12 0v-3zM12 19v3"/></svg></span>
+                                    <span class="telemetry-section-title">Output</span>
+                                    <span class="telemetry-health is-muted" id="telemetry-health-output">Waiting</span>
+                                    <svg class="telemetry-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </h3>
+                            <div class="telemetry-list" id="telemetry-list-output">
+                                <p class="telemetry-section-empty" id="telemetry-empty-output">Waiting for telemetry…</p>
                             </div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">UPS Load</div>
-                            <div class="metric-value"><span id="ups-load">--</span><span class="unit">%</span></div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar load" id="bar-load" style="width: 0%"></div>
+                        </section>
+                        <section class="telemetry-section" data-group="input" aria-label="Input telemetry">
+                            <h3 class="telemetry-section-heading">
+                                <button type="button" class="telemetry-section-toggle" data-group="input"
+                                    aria-expanded="true" aria-controls="telemetry-list-input">
+                                    <span class="telemetry-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12c4-10 8 10 12 0s6-5 8 0"/></svg></span>
+                                    <span class="telemetry-section-title">Input</span>
+                                    <span class="telemetry-health is-muted" id="telemetry-health-input">Waiting</span>
+                                    <svg class="telemetry-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </h3>
+                            <div class="telemetry-list" id="telemetry-list-input">
+                                <p class="telemetry-section-empty" id="telemetry-empty-input">Waiting for telemetry…</p>
                             </div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Real Power</div>
-                            <div class="metric-value"><span id="ups-realpower">--</span><span class="unit">W</span>
+                        </section>
+                        <section class="telemetry-section" data-group="device" aria-label="Device Details telemetry">
+                            <h3 class="telemetry-section-heading">
+                                <button type="button" class="telemetry-section-toggle" data-group="device"
+                                    aria-expanded="true" aria-controls="telemetry-list-device">
+                                    <span class="telemetry-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 13h8M8 17h4"/></svg></span>
+                                    <span class="telemetry-section-title">Device Details</span>
+                                    <span class="telemetry-health is-muted" id="telemetry-health-device">Waiting</span>
+                                    <svg class="telemetry-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </h3>
+                            <div class="telemetry-list" id="telemetry-list-device">
+                                <p class="telemetry-section-empty" id="telemetry-empty-device">Waiting for telemetry…</p>
                             </div>
-                        </div>
+                        </section>
                     </div>
 
-                    <div class="details-table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Parameter</th>
-                                    <th>Value</th>
-                                    <th>Description</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ups-table-body">
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
+            </div>
+
+            <div class="tab-content" id="content-ota">
+                <section class="panel ota-dashboard-panel">
+                    <div class="panel-header">
+                        <h2>Firmware Update</h2>
+                        <p>Upload and install firmware without leaving the dashboard.</p>
+                    </div>
+                    <!-- The existing authenticated /update page remains the upload handler. -->
+                    <iframe id="ota-frame" class="ota-frame" title="Firmware update"
+                        data-src="/update?embedded=1"></iframe>
+                </section>
             </div>
 
             <div class="tab-content" id="content-commands">
@@ -1390,6 +1478,25 @@
                 </div>
             </div>
 
+            </div><!-- /.content-scroll -->
+
+            <!-- Reused detail view for every clickable telemetry list row. -->
+            <div id="metric-overlay" class="metric-overlay" hidden>
+                <section class="metric-detail" role="dialog" aria-modal="true" aria-labelledby="metric-detail-title"
+                    tabindex="-1">
+                    <div class="metric-detail-header">
+                        <h2 id="metric-detail-title">UPS Metric</h2>
+                        <button type="button" class="metric-detail-close" id="metric-detail-close"
+                            aria-label="Close metric details">&times;</button>
+                    </div>
+                    <div class="metric-detail-value" id="metric-detail-value">--</div>
+                    <dl class="metric-detail-fields">
+                        <dt>NUT variable</dt><dd id="metric-detail-key">—</dd>
+                        <dt>Raw NUT value</dt><dd id="metric-detail-raw-value">—</dd>
+                        <dt>Description</dt><dd id="metric-detail-description">—</dd>
+                    </dl>
+                </section>
+            </div>
         </main>
     </div>
     <script src="bundle.js?v=1.2.0"></script>

@@ -17,11 +17,12 @@ test.describe('Boards without Wi-Fi', () => {
 
     await expect(page.locator('#lbl-wifi')).toHaveText('Ethernet: 192.168.1.50 (100 Mbps)');
     await expect(page.locator('#ind-wifi')).toHaveClass('status-indicator success');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="network"]');
     await expect(page.locator('.net-section[data-link="ethernet"]')).toBeVisible();
     await expect(page.locator('.net-section[data-link="wifi"]')).toBeHidden();
     await expect(page.locator('#wifi-form')).toBeHidden();
-    await expect(page.locator('button[data-target="nut"]')).toBeVisible();
+    await expect(page.locator('button[data-target="nut"]')).toHaveCount(1);
   });
 
   test('link down is danger, and offline keeps the Ethernet label', async ({ page }) => {
@@ -47,6 +48,7 @@ test.describe('Boards without Wi-Fi', () => {
       json: { wifi: { ssid: 'HomeNetwork', mode: 'STA' }, network: { type: 'wifi' }, nut: { username: '', ups_name: 'ups' } },
     }));
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target="network"]');
     await expect(page.locator('.net-section[data-link="wifi"]')).toBeVisible();
     await expect(page.locator('#wifi-form')).toBeVisible();

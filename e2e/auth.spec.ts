@@ -293,6 +293,7 @@ test.describe('Web UI authentication (US-061)', () => {
     mock.authenticated = true;
     await page.goto(HOME);
 
+    await page.locator('#nav-toggle').click();
     await expect(page.locator('#sidebar-session')).toBeVisible();
     await expect(page.locator('#session-username')).toHaveText(USER);
     await expect(page.locator('#btn-logout')).toBeVisible();
@@ -408,6 +409,7 @@ test.describe('Web UI authentication (US-061)', () => {
     mock.authenticated = true;
     await page.goto(HOME);
 
+    await page.locator('#nav-toggle').click();
     await expect(page.locator('#sidebar-session')).toBeVisible();
     const btn = page.locator('#btn-logout-all');
     await expect(btn).toBeVisible();
@@ -427,6 +429,7 @@ test.describe('Web UI authentication (US-061)', () => {
     await page.goto(HOME);
 
     const error = page.locator('#logout-all-error');
+    await page.locator('#nav-toggle').click();
     await expect(page.locator('#sidebar-session')).toBeVisible();
     await expect(error).toBeHidden();
 

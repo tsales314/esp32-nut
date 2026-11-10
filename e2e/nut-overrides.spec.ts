@@ -63,6 +63,7 @@ function newMock(list: Entry[] = []): Mock {
 
 async function openNutTab(page: Page) {
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.click('.tab[data-target="nut"]');
   await expect(page.locator('#content-nut')).toHaveClass(/active/);
 }
@@ -228,6 +229,7 @@ test.describe('NUT Server custom variables', () => {
       },
     }));
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('.tab[data-target="settings"]');
 
     const locked = page.locator('.set-row[data-var="battery.charge.low"]');
