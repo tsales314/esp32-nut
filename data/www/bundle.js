@@ -236,18 +236,94 @@ document.addEventListener('DOMContentLoaded', () => {
     const contents = document.querySelectorAll('.tab-content');
     const pageTitle = document.querySelector('.page-title');
 
+    // The same off-canvas drawer is used on desktop and mobile.
+    const navToggle = document.getElementById('nav-toggle');
+    const navClose = document.getElementById('nav-close');
+    const navDrawer = document.getElementById('app-sidebar');
+    const navScrim = document.getElementById('nav-scrim');
+    let isNavigationOpen = false;
+
+    function setNavigationOpen(open, restoreFocus) {
+        isNavigationOpen = !!open;
+        if (navDrawer) {
+            navDrawer.classList.toggle('is-open', isNavigationOpen);
+            navDrawer.setAttribute('aria-hidden', String(!isNavigationOpen));
+            navDrawer.toggleAttribute('inert', !isNavigationOpen);
+        }
+        if (navScrim) navScrim.hidden = !isNavigationOpen;
+        if (navToggle) {
+            navToggle.setAttribute('aria-expanded', String(isNavigationOpen));
+            navToggle.setAttribute('aria-label', isNavigationOpen ? 'Close navigation' : 'Open navigation');
+        }
+        if (isNavigationOpen && navDrawer) {
+            const selected = navDrawer.querySelector('.tab.active');
+            if (selected) selected.focus();
+        } else if (restoreFocus && navToggle) {
+            navToggle.focus();
+        }
+    }
+    if (navToggle) navToggle.addEventListener('click', () => setNavigationOpen(!isNavigationOpen, true));
+    if (navClose) navClose.addEventListener('click', () => setNavigationOpen(false, true));
+    if (navScrim) navScrim.addEventListener('click', () => setNavigationOpen(false, true));
+    tabs.forEach(tab => tab.addEventListener('click', () => setNavigationOpen(false, false)));
+    document.addEventListener('keydown', (event) => {
+        if (!isNavigationOpen) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            setNavigationOpen(false, true);
+        } else if (event.key === 'Tab' && navDrawer) {
+            // Focus cannot leave an open modal navigation drawer.
+            const items = Array.from(navDrawer.querySelectorAll('button:not([disabled])'))
+                .filter(el => !el.hidden && el.offsetParent !== null);
+            if (!items.length) return;
+            const first = items[0], last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+    });
+
+
     // Imposta il titolo iniziale
     const activeTab = document.querySelector('.tab.active');
     if (activeTab && pageTitle) {
         pageTitle.textContent = activeTab.textContent.trim();
     }
 
+    // Keep OTA in the same application shell. Its existing /update upload page
+    // is embedded only when selected, so the dashboard menu never disappears.
+    const otaFrame = document.getElementById('ota-frame');
+    if (otaFrame) {
+        otaFrame.addEventListener('load', () => {
+            try {
+                // When OTA authentication expires, show the login page at top-level.
+                if (otaFrame.contentWindow.location.pathname === '/login') {
+                    window.location.replace('/login?expired=1');
+                }
+            } catch (err) {
+                // Cross-origin frames are never expected; keep navigation safe.
+                console.error('Could not inspect OTA frame:', err);
+            }
+        });
+    }
+    window.addEventListener('message', (event) => {
+        if (!otaFrame || event.source !== otaFrame.contentWindow || event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== 'esp32-nut-ota-height') return;
+        const height = Number(event.data.height);
+        if (Number.isFinite(height) && height >= 240 && height <= 1500) {
+            otaFrame.style.height = Math.ceil(height) + 'px';
+        }
+    });
+
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const target = tab.getAttribute('data-target');
-            if (target === 'ota') {
-                window.location.href = '/update';
-                return;
+            if (target === 'ota' && otaFrame && !otaFrame.getAttribute('src')) {
+                otaFrame.setAttribute('src', otaFrame.dataset.src);
             }
 
             tabs.forEach(t => t.classList.remove('active'));
@@ -1582,52 +1658,450 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     // UPS Parameters Logic
-    const upsTableBody = document.getElementById('ups-table-body');
+    // Read-only dashboard cards. Every UPS variable reported by the existing
+    // /api/ups-vars endpoint gets a card; no storage, history or new API is needed.
+    const metricsGrid = document.getElementById('metrics-grid');
+    const metricsEmpty = document.getElementById('metrics-empty');
+    const metricOverlay = document.getElementById('metric-overlay');
+    const metricDialog = metricOverlay && metricOverlay.querySelector('.metric-detail');
+    const metricClose = document.getElementById('metric-detail-close');
+    const metricDetailTitle = document.getElementById('metric-detail-title');
+    const metricDetailValue = document.getElementById('metric-detail-value');
+    const metricDetailKey = document.getElementById('metric-detail-key');
+    const metricDetailRaw = document.getElementById('metric-detail-raw-value');
+    const metricDetailDescription = document.getElementById('metric-detail-description');
+    const metricCards = new Map();
+    let previousMetricOrder = '';
+    let latestUpsVars = {};
+    let selectedMetricKey = null;
+    let metricReturnFocus = null;
 
-    // The 4 metric cards of the telemetry page (US-086 removed the copy on the commands page)
-    const TELEMETRY_METRIC_IDS = {
-        status: 'ups-status', charge: 'ups-charge', barCharge: 'bar-charge',
-        load: 'ups-load', barLoad: 'bar-load', realPower: 'ups-realpower'
+    const PRIMARY_METRICS = [
+        'ups.status', 'battery.charge', 'input.voltage', 'output.voltage', 'ups.load',
+        'battery.runtime', 'input.frequency', 'battery.voltage',
+        'ups.temperature', 'ups.realpower', 'ups.power',
+        'output.frequency', 'battery.voltage.nominal'
+    ];
+    const METRIC_NAMES = {
+        'battery.charge': 'Battery Charge',
+        'input.voltage': 'Input Voltage',
+        'output.voltage': 'Output Voltage',
+        'ups.load': 'Load',
+        'battery.runtime': 'Runtime (on battery)',
+        'input.frequency': 'Input Frequency',
+        'battery.voltage': 'Battery Voltage',
+        'ups.temperature': 'Temperature',
+        'ups.status': 'UPS Status',
+        'ups.realpower': 'Output Power',
+        'ups.power': 'Apparent Power',
+        'ups.mfr': 'Manufacturer',
+        'ups.model': 'UPS Model',
+        'ups.serial': 'UPS Serial Number',
+        'ups.beeper.status': 'Beeper',
+        'battery.status': 'Battery Status',
+        'battery.health': 'Battery Health',
+        'input.quality': 'Input Quality'
+    };
+    const METRIC_UNITS = {
+        'battery.charge': '%', 'ups.load': '%',
+        'input.voltage': 'V', 'output.voltage': 'V', 'battery.voltage': 'V',
+        'input.frequency': 'Hz', 'output.frequency': 'Hz',
+        'ups.realpower': 'W', 'ups.power': 'VA', 'ups.temperature': '°C'
+    };
+    const METRIC_ICONS = {
+        battery: '<rect x="3" y="7" width="17" height="10" rx="2"/><path d="M22 10v4M7 9v6M11 9v6M15 9v6"/>',
+        voltage: '<path d="M8 2v7M16 2v7M6 9h12v4a6 6 0 0 1-12 0V9zM12 19v3"/>',
+        load: '<path d="M4 17a9 9 0 1 1 16 0M12 13l4-4"/><circle cx="12" cy="13" r="1"/>',
+        clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 3"/>',
+        wave: '<path d="M2 12c4-12 8 12 12 0s6-6 8 0"/>',
+        temperature: '<path d="M10 14V5a2 2 0 0 1 4 0v9a5 5 0 1 1-4 0z"/><path d="M12 9v9"/>',
+        power: '<path d="M12 2L5 13h6l-1 9 9-13h-6l1-7z"/>',
+        status: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 14h6"/>',
+        generic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 14h10"/>'
     };
 
-    function renderMetrics(data, ids) {
-        const elStatus = document.getElementById(ids.status);
-        const elCharge = document.getElementById(ids.charge);
-        const barCharge = document.getElementById(ids.barCharge);
-        const elLoad = document.getElementById(ids.load);
-        const barLoad = document.getElementById(ids.barLoad);
-        const elRealPower = document.getElementById(ids.realPower);
+    function metricName(key) {
+        if (METRIC_NAMES[key]) return METRIC_NAMES[key];
+        return key.split('.').map((word, index) => {
+            if (word.toLowerCase() === 'ups') return 'UPS';
+            if (word.toLowerCase() === 'usb') return 'USB';
+            if (word.toLowerCase() === 'id') return 'ID';
+            return word.charAt(0).toUpperCase() + word.slice(1);
+        }).join(' ');
+    }
 
-        if (elStatus) elStatus.innerText = data['ups.status'] || '--';
+    function metricUnit(key) {
+        if (METRIC_UNITS[key]) return METRIC_UNITS[key];
+        if (/\.voltage(\.|$)/.test(key)) return 'V';
+        if (/\.frequency$/.test(key)) return 'Hz';
+        if (/\.temperature$/.test(key)) return '°C';
+        return '';
+    }
 
-        if (elCharge) {
-            const charge = data['battery.charge'] || 0;
-            elCharge.innerText = charge;
-            if (barCharge) barCharge.style.width = `${charge}%`;
+    function metricIcon(key) {
+        if (key === 'battery.runtime') return 'clock';
+        if (key.startsWith('battery.')) return 'battery';
+        if (key === 'ups.load') return 'load';
+        if (key.includes('voltage')) return 'voltage';
+        if (key.includes('frequency')) return 'wave';
+        if (key.includes('temperature')) return 'temperature';
+        if (key.includes('power')) return 'power';
+        if (key === 'ups.status') return 'status';
+        return 'generic';
+    }
+
+    function metricFormat(key, value, isDisconnected, data = {}) {
+        if (key === 'ups.status' && isDisconnected) return { reading: 'Disconnected', unit: '' };
+        if (key === 'ups.status' && data._loading) return { reading: 'Checking UPS…', unit: '' };
+        if (key === 'ups.status' && data._loadFailed) return { reading: 'Telemetry unavailable', unit: '' };
+        if (key === 'ups.status' && (value === undefined || value === null || value === '')) {
+            return { reading: 'Status unavailable', unit: '' };
         }
-
-        if (elLoad) {
-            // undefined and not ||: a missing ups.load is not 0 % (US-109, #100)
-            const load = data['ups.load'];
-            elLoad.innerText = load === undefined ? '--' : load;
-            if (barLoad) {
-                barLoad.style.width = `${load === undefined ? 0 : load}%`;
-                if (parseInt(load) > 80) {
-                    barLoad.style.background = 'var(--danger)';
-                    barLoad.style.boxShadow = '0 0 10px var(--danger)';
-                } else {
-                    barLoad.style.background = 'var(--accent)';
-                    barLoad.style.boxShadow = '0 0 10px var(--accent)';
-                }
+        if (value === undefined || value === null || value === '') return { reading: '--', unit: '' };
+        const raw = String(value);
+        if (key === 'ups.status') {
+            const flags = raw.trim().split(/\s+/);
+            if (flags.includes('FSD')) return { reading: 'Forced Shutdown', unit: '' };
+            if (flags.includes('OB') || flags.includes('OL')) {
+                const source = flags.includes('OB') ? 'On Battery' : 'On Line';
+                return { reading: source + (flags.includes('LB') ? ' · Low Battery' : ''), unit: '' };
             }
+            return { reading: raw, unit: '' };
         }
+        if (key === 'battery.runtime' && Number.isFinite(Number(raw)) && Number(raw) >= 0) {
+            const seconds = Math.floor(Number(raw));
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return { reading: hours ? (hours + ' h ' + minutes + ' m') : (minutes + ' min'), unit: '' };
+        }
+        return { reading: raw, unit: metricUnit(key) };
+    }
 
-        if (elRealPower) {
-            // ?? and not ||: a real power of 0 W is a value, not a missing one
-            const realPower = data['ups.realpower'] ?? '--';
-            elRealPower.innerText = realPower;
+    function metricState(key, raw, disconnected, failed) {
+        if (key !== 'ups.status') return '';
+        if (disconnected) return 'is-danger';
+        if (failed || !raw) return 'is-warning';
+        const flags = String(raw || '').split(' ');
+        if (flags.includes('LB') || flags.includes('FSD')) return 'is-danger';
+        if (flags.includes('OB')) return 'is-warning';
+        if (flags.includes('OL')) return 'is-good';
+        return '';
+    }
+
+    // Compact dashboard: permanent status banner, followed by three collapsible
+    // read-only metric lists. Every NUT variable still has a clickable detail view.
+    const TELEMETRY_GROUPS = ['output', 'input', 'device'];
+    const TELEMETRY_ORDER = {
+        output: ['output.voltage', 'ups.load', 'ups.realpower', 'ups.power',
+            'battery.runtime', 'battery.voltage', 'output.frequency',
+            'battery.voltage.nominal', 'ups.power.nominal'],
+        input: ['input.voltage', 'input.frequency', 'input.quality',
+            'input.voltage.nominal', 'input.transfer.low', 'input.transfer.high'],
+        device: ['ups.model', 'ups.mfr', 'ups.serial', 'battery.status',
+            'battery.charge', 'battery.health', 'ups.beeper.status',
+            'ups.temperature', 'ups.firmware', 'driver.name', 'driver.version']
+    };
+    const TELEMETRY_OUTPUT = new Set(TELEMETRY_ORDER.output.concat(
+        ['ups.efficiency', 'ups.load.high']));
+    const telemetryLists = {};
+    const telemetryEmpty = {};
+    const telemetryHealth = {};
+    for (const name of TELEMETRY_GROUPS) {
+        telemetryLists[name] = document.getElementById('telemetry-list-' + name);
+        telemetryEmpty[name] = document.getElementById('telemetry-empty-' + name);
+        telemetryHealth[name] = document.getElementById('telemetry-health-' + name);
+    }
+    const statusCard = document.querySelector('#metrics-grid .telemetry-status');
+    const statusContext = document.getElementById('telemetry-status-context');
+    const statusUpdated = document.getElementById('telemetry-last-updated');
+    const highlightCards = metricsGrid ? Array.from(
+        metricsGrid.querySelectorAll('.telemetry-highlight[data-metric-key]')) : [];
+
+    function metricGroup(key) {
+        if (key.startsWith('input.')) return 'input';
+        if (key.startsWith('output.') || key.startsWith('battery.voltage') ||
+            key === 'battery.runtime' || TELEMETRY_OUTPUT.has(key)) return 'output';
+        // Unclassified/vendor-specific variables remain visible in Device Details.
+        return 'device';
+    }
+
+    function groupRank(group, key) {
+        const index = TELEMETRY_ORDER[group].indexOf(key);
+        return index < 0 ? TELEMETRY_ORDER[group].length : index;
+    }
+
+    function metricHealth(key, raw, data) {
+        if (data._disconnected) return 'is-danger';
+        if (data._loadFailed) return 'is-warning';
+        if (data._loading || raw === undefined || raw === null || raw === '') return 'is-muted';
+        const value = String(raw).trim().toLowerCase();
+        // Explicit device states take priority; no fabricated voltage/wattage limits.
+        if (key === 'ups.status') {
+            const flags = value.split(/\s+/);
+            if (flags.includes('fsd') || flags.includes('lb') ||
+                flags.includes('rb') || flags.includes('over')) return 'is-danger';
+            if (flags.includes('ob')) return 'is-warning';
+            if (flags.includes('ol')) return 'is-good';
+            return 'is-muted';
+        }
+        if (/\b(fault|failed|failure|replace|critical|overload|error|bad)\b/.test(value)) return 'is-danger';
+        if (/\b(warning|degraded|low|poor|on battery)\b/.test(value)) return 'is-warning';
+        // Only compare battery values against the UPS driver's published thresholds.
+        if (key === 'battery.charge' || key === 'battery.runtime') {
+            const threshold = Number(data[key + '.low']);
+            const current = Number(raw);
+            if (data[key + '.low'] !== undefined && Number.isFinite(threshold) &&
+                Number.isFinite(current) && current <= threshold) return 'is-warning';
+        }
+        // For numeric values the green dot means a live reading, not independent
+        // verification that a value falls within electrical safety limits.
+        if (['input.voltage', 'input.frequency', 'input.quality'].includes(key) &&
+            String(data['ups.status'] || '').split(/\s+/).includes('OB')) return 'is-warning';
+        if (key === 'ups.beeper.status' || /^(driver|device|ups.serial|ups.mfr|ups.model)/.test(key)) return 'is-muted';
+        if (value === 'off' || value === 'disabled' || value === 'unknown') return 'is-muted';
+        return 'is-good';
+    }
+
+    function createMetricCard(key) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'metric-card telemetry-row';
+        row.dataset.metricKey = key;
+
+        const dot = document.createElement('span');
+        dot.className = 'telemetry-dot is-muted';
+        dot.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span');
+        label.className = 'metric-label';
+        label.textContent = metricName(key);
+        const value = document.createElement('span');
+        value.className = 'metric-value';
+        const reading = document.createElement('span');
+        reading.className = 'metric-reading';
+        const legacyIds = {
+            'battery.charge': 'ups-charge',
+            'ups.load': 'ups-load',
+            'ups.realpower': 'ups-realpower'
+        };
+        if (legacyIds[key]) reading.id = legacyIds[key];
+        const unit = document.createElement('span');
+        unit.className = 'metric-unit';
+        value.append(reading, unit);
+        row.append(dot, label, value);
+        return row;
+    }
+
+    function updateMetricDetail() {
+        if (!selectedMetricKey) return;
+        const key = selectedMetricKey;
+        const data = latestUpsVars;
+        const raw = key === 'ups.status' && data._disconnected ?
+            'Disconnected' : data[key];
+        const display = metricFormat(key, raw, !!data._disconnected, data);
+        if (metricDetailTitle) metricDetailTitle.textContent = metricName(key);
+        if (metricDetailValue) metricDetailValue.textContent =
+            display.reading + (display.unit ? ' ' + display.unit : '');
+        if (metricDetailKey) metricDetailKey.textContent = key;
+        if (metricDetailRaw) metricDetailRaw.textContent = data[key] === undefined ||
+            data[key] === null ? 'Not reported' : String(data[key]);
+        if (metricDetailDescription) metricDetailDescription.textContent =
+            NUT_DESCRIPTIONS[key] || 'No description available.';
+    }
+
+    function closeMetricDetail() {
+        if (!metricOverlay || metricOverlay.hidden) return;
+        metricOverlay.hidden = true;
+        selectedMetricKey = null;
+        if (metricReturnFocus && metricReturnFocus.isConnected) metricReturnFocus.focus();
+    }
+
+    if (metricClose) metricClose.addEventListener('click', closeMetricDetail);
+    if (metricOverlay) {
+        metricOverlay.addEventListener('click', (event) => {
+            if (event.target === metricOverlay) closeMetricDetail();
+        });
+    }
+    if (metricsGrid) {
+        metricsGrid.addEventListener('click', (event) => {
+            const row = event.target.closest('.metric-card, .telemetry-highlight');
+            if (!row) return;
+            metricReturnFocus = row;
+            selectedMetricKey = row.dataset.metricKey;
+            updateMetricDetail();
+            if (metricOverlay) metricOverlay.hidden = false;
+            if (metricDialog) metricDialog.focus();
+        });
+        metricsGrid.querySelectorAll('.telemetry-section-toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const expanded = toggle.getAttribute('aria-expanded') === 'true';
+                const list = document.getElementById(toggle.getAttribute('aria-controls'));
+                toggle.setAttribute('aria-expanded', String(!expanded));
+                if (list) list.hidden = expanded;
+            });
+        });
+    }
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && metricOverlay && !metricOverlay.hidden) {
+            event.preventDefault();
+            closeMetricDetail();
+        }
+        if (event.key === 'Tab' && metricOverlay && !metricOverlay.hidden && metricDialog) {
+            event.preventDefault();
+            if (metricClose) metricClose.focus();
+        }
+    });
+
+    function updateStatusBanner(data) {
+        if (!statusCard) return;
+        const formatted = metricFormat('ups.status', data['ups.status'],
+            !!data._disconnected, data);
+        const health = metricHealth('ups.status', data['ups.status'], data);
+        const reading = statusCard.querySelector('.metric-reading');
+        const value = statusCard.querySelector('.metric-value');
+        const dot = statusCard.querySelector('.telemetry-status-dot');
+        if (reading) reading.textContent = formatted.reading;
+        if (value) value.className = 'metric-value ' + health;
+        if (dot) dot.className = 'telemetry-status-dot ' + health;
+        statusCard.dataset.health = health;
+        const flags = String(data['ups.status'] || '').split(/\s+/);
+        const onBattery = flags.includes('OB');
+        const runtimeRaw = data['battery.runtime'];
+        const runtimeSeconds = Number(runtimeRaw);
+        const hasRuntime = runtimeRaw !== undefined && runtimeRaw !== null &&
+            String(runtimeRaw).trim() !== '' &&
+            Number.isFinite(runtimeSeconds) && runtimeSeconds >= 0;
+        if (statusContext) {
+            const context = data._disconnected ? 'UPS disconnected' :
+                data._loadFailed ? 'No telemetry response' :
+                data._loading ? 'Waiting for first update' :
+                flags.includes('FSD') || flags.includes('LB') ? 'UPS requires attention' :
+                onBattery ? 'Running on battery power' :
+                flags.includes('OL') ? 'On utility power' : 'Power state unknown';
+            // NUT reports battery.runtime in seconds. Only show it while on
+            // battery; an unavailable or invalid estimate must never look real.
+            const remaining = onBattery && hasRuntime &&
+                !data._disconnected && !data._loadFailed && !data._loading
+                ? metricFormat('battery.runtime', runtimeRaw, false).reading + ' remaining'
+                : '';
+            statusContext.textContent = context + (remaining ? ' · ' + remaining : '');
+        }
+        if (statusUpdated) {
+            statusUpdated.textContent = data._loadFailed ? 'Update failed' :
+                data._loading ? 'Not yet updated' : 'Live · Updated just now';
+        }
+        statusCard.setAttribute('aria-label', 'UPS Status: ' +
+            formatted.reading + '. View raw NUT details');
+    }
+
+    function updateHighlights(data) {
+        for (const card of highlightCards) {
+            const key = card.dataset.metricKey;
+            const raw = data[key];
+            const hasReading = raw !== undefined && raw !== null && raw !== '' &&
+                !data._disconnected && !data._loadFailed && !data._loading;
+            const formatted = hasReading
+                ? metricFormat(key, raw, false, data) : { reading: '—', unit: '' };
+            const health = hasReading ? metricHealth(key, raw, data) : 'is-muted';
+            const value = card.querySelector('.telemetry-highlight-value');
+            const unit = card.querySelector('.telemetry-highlight-unit');
+            const dot = card.querySelector('.telemetry-highlight-health');
+            if (value) value.textContent = formatted.reading;
+            if (unit) unit.textContent = formatted.unit;
+            if (dot) dot.className = 'telemetry-highlight-health ' + health;
+            card.dataset.health = health;
+            card.setAttribute('aria-label', metricName(key) + ': ' +
+                (hasReading ? formatted.reading + (formatted.unit ? ' ' + formatted.unit : '') :
+                    'Not reported') + '. View details');
         }
     }
+
+    function updateGroupHealth(group, keys, data) {
+        const badge = telemetryHealth[group];
+        if (!badge) return;
+        let level = 'is-good';
+        let label = 'Reporting';
+        if (data._disconnected) { level = 'is-danger'; label = 'Offline'; }
+        else if (data._loadFailed) { level = 'is-warning'; label = 'Unavailable'; }
+        else if (data._loading) { level = 'is-muted'; label = 'Waiting'; }
+        else if (!keys.length) { level = 'is-muted'; label = 'No data'; }
+        else {
+            const states = keys.map(key => metricHealth(key, data[key], data));
+            if (states.includes('is-danger')) { level = 'is-danger'; label = 'Attention'; }
+            else if (states.includes('is-warning')) { level = 'is-warning'; label = 'Warning'; }
+            else if (states.every(state => state === 'is-muted')) {
+                level = 'is-muted'; label = 'Details';
+            } else {
+                // "Reporting" avoids claiming electrical safety without thresholds.
+                level = 'is-good'; label = 'Reporting';
+            }
+        }
+        badge.className = 'telemetry-health ' + level;
+        badge.textContent = label;
+    }
+
+    function renderMetrics(data) {
+        if (!metricsGrid) return;
+        latestUpsVars = data;
+        const groups = { output: [], input: [], device: [] };
+        Object.keys(data)
+            .filter(key => key !== 'ups.status' && !key.startsWith('_') &&
+                data[key] !== undefined && data[key] !== null)
+            .forEach(key => groups[metricGroup(key)].push(key));
+        for (const group of TELEMETRY_GROUPS) {
+            groups[group].sort((a, b) =>
+                groupRank(group, a) - groupRank(group, b) || a.localeCompare(b));
+        }
+        // Rebuild list children only when variables appear/disappear/reorder.
+        // This keeps open sections, focus, and active detail dialogs stable.
+        const order = TELEMETRY_GROUPS.map(group => groups[group].join('\u0001')).join('\u0002');
+        if (order !== previousMetricOrder) {
+            for (const group of TELEMETRY_GROUPS) {
+                const list = telemetryLists[group];
+                if (!list) continue;
+                const cards = groups[group].map(key => {
+                    if (!metricCards.has(key)) metricCards.set(key, createMetricCard(key));
+                    return metricCards.get(key);
+                });
+                const empty = telemetryEmpty[group];
+                list.replaceChildren(...cards, ...(cards.length === 0 && empty ? [empty] : []));
+            }
+            const activeKeys = new Set(TELEMETRY_GROUPS.flatMap(group => groups[group]));
+            for (const key of metricCards.keys()) {
+                if (!activeKeys.has(key)) metricCards.delete(key);
+            }
+            previousMetricOrder = order;
+        }
+        for (const group of TELEMETRY_GROUPS) {
+            const empty = telemetryEmpty[group];
+            if (empty) {
+                empty.textContent = data._disconnected ? 'UPS disconnected' :
+                    data._loadFailed ? 'Waiting for telemetry to recover…' :
+                    data._loading ? 'Waiting for UPS telemetry…' :
+                    'No ' + (group === 'device' ? 'device' : group) + ' readings reported';
+            }
+            for (const key of groups[group]) {
+                const card = metricCards.get(key);
+                if (!card) continue;
+                const formatted = metricFormat(key, data[key], !!data._disconnected, data);
+                const reading = card.querySelector('.metric-reading');
+                const unit = card.querySelector('.metric-unit');
+                const dot = card.querySelector('.telemetry-dot');
+                const health = metricHealth(key, data[key], data);
+                if (reading) reading.textContent = formatted.reading;
+                if (unit) unit.textContent = formatted.unit;
+                if (dot) dot.className = 'telemetry-dot ' + health;
+                card.setAttribute('aria-label', metricName(key) + ': ' + formatted.reading +
+                    (formatted.unit ? ' ' + formatted.unit : '') + '. View details');
+            }
+            updateGroupHealth(group, groups[group], data);
+        }
+        updateStatusBanner(data);
+        updateHighlights(data);
+        updateMetricDetail();
+    }
+
+    // Keep the dedicated status and empty sections visible before first polling.
+    renderMetrics({ _loading: true });
 
     // US-059: "Last test result" box, hidden when ups.test.result is absent
     function renderTestResult(data) {
@@ -1673,6 +2147,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (data.error) {
                 console.error('UPS Error:', data.error);
+                renderMetrics({ _loadFailed: true });
                 return;
             }
 
@@ -1687,7 +2162,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             // Update primary metrics (telemetry and commands pages)
-            renderMetrics(data, TELEMETRY_METRIC_IDS);
+            renderMetrics(data);
             renderTestResult(data);
 
             // Reload the command catalog when the UPS connects or disconnects, or when
@@ -1698,49 +2173,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             lastCatalogKey = catalogKey;
 
-            // Update table
-            if (upsTableBody) {
-                const sortedKeys = Object.keys(data)
-                    .filter(k => (!data._disconnected || k !== 'ups.status') && !k.startsWith('_'))
-                    .sort();
-                let currentIndex = 0;
-                
-                for (const key of sortedKeys) {
-                    const value = data[key];
-                    const rowId = `row-${key.replace(/\./g, '-')}`;
-                    let tr = document.getElementById(rowId);
-                    
-                    if (!tr) {
-                        const desc = NUT_DESCRIPTIONS[key] || '--';
-                        tr = document.createElement('tr');
-                        tr.id = rowId;
-                        tr.innerHTML = `
-                            <td>${key}</td>
-                            <td class="ups-val">${value}</td>
-                            <td>${desc}</td>
-                        `;
-                    } else {
-                        const valCell = tr.querySelector('.ups-val');
-                        if (valCell && valCell.textContent !== String(value)) {
-                            valCell.textContent = value;
-                        }
-                    }
-                    
-                    // Enforce DOM order
-                    if (upsTableBody.children[currentIndex] !== tr) {
-                        upsTableBody.insertBefore(tr, upsTableBody.children[currentIndex] || null);
-                    }
-                    currentIndex++;
-                }
-                
-                // Remove stale rows that are no longer in the payload
-                while (upsTableBody.children.length > currentIndex) {
-                    upsTableBody.removeChild(upsTableBody.lastChild);
-                }
-            }
+
             
         } catch (error) {
             console.error('Failed to fetch UPS vars:', error);
+            renderMetrics({ _loadFailed: true });
             const statusBadge = document.getElementById('status-badge');
             if (statusBadge) {
                 statusBadge.textContent = 'Offline';
@@ -2465,6 +2902,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderDiagnostics(data);
             renderNetworkStatus(data.network);
+            const topbarUps = document.getElementById('topbar-ups-status');
+            const topbarUpsLabel = document.getElementById('topbar-ups-label');
+            if (topbarUps && topbarUpsLabel) {
+                const ups = data.ups;
+                const status = ups && ups.status;
+                const disconnected = !ups || status === 'Disconnected';
+                const unknown = !disconnected && !status;
+                const stale = !!(ups && ups.stale);
+                topbarUps.className = 'topbar-status' +
+                    (disconnected ? ' is-danger' : (unknown || stale || status === 'Connecting' ? ' is-warning' : ''));
+                topbarUpsLabel.textContent = disconnected ? 'UPS Offline' :
+                    (unknown ? 'UPS Unknown' : (stale ? 'UPS Stale' :
+                        (status === 'Connecting' ? 'Connecting' : 'UPS Online')));
+            }
 
             if (lblUps && data.ups) {
                 lblUps.textContent = 'UPS: ' + data.ups.status + (data.ups.stale ? ' (stale)' : '');
@@ -2490,6 +2941,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Failed to fetch system status:', error);
+            const topbarUps = document.getElementById('topbar-ups-status');
+            const topbarUpsLabel = document.getElementById('topbar-ups-label');
+            if (topbarUps) topbarUps.className = 'topbar-status is-danger';
+            if (topbarUpsLabel) topbarUpsLabel.textContent = 'UPS Offline';
             const indWifi = document.getElementById('ind-wifi');
             const lblWifi = document.getElementById('lbl-wifi');
             const indUps = document.getElementById('ind-ups');

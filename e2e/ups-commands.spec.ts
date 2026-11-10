@@ -50,6 +50,7 @@ function defaultMock(): Mock {
 
 async function openCommandsTab(page: Page) {
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.locator('button.tab[data-target="commands"]').click();
   await expect(page.locator('#content-commands')).toHaveClass(/active/);
 }
@@ -94,6 +95,7 @@ test.describe('UPS Commands page (US-059)', () => {
     await expect(secondTab).toHaveAttribute('data-target', 'commands');
     await expect(secondTab).toHaveText('UPS Commands');
 
+    await page.locator('#nav-toggle').click();
     await secondTab.click();
     await expect(page.locator('.page-title')).toHaveText('UPS Commands');
     await expect(page.locator('#content-commands')).toBeVisible();
@@ -297,16 +299,17 @@ ${CONFIRM_WARNING}`);
   });
 
   // US-086: the beeper is driven from this page (beeper.*), the telemetry toggle is gone
-  test('telemetry: no beeper toggle, beeper status still in the table', async ({ page }) => {
+  test('telemetry: no beeper toggle, beeper status still shown as a card', async ({ page }) => {
     await openCommandsTab(page);
     await expect(page.locator('.cmd-row')).toHaveCount(3);
 
+    await page.locator('#nav-toggle').click();
     await page.locator('button.tab[data-target="ups"]').click();
-    await expect(page.locator('.page-title')).toHaveText('UPS Telemetry');
+    await expect(page.locator('.page-title')).toHaveText('Dashboard');
     await expect(page.locator('#content-ups')).toBeVisible();
 
-    await expect(page.locator('#ups-status')).toHaveText('OL');
-    await expect(page.locator('#row-ups-beeper-status .ups-val')).toHaveText('enabled');
+    await expect(page.locator('#ups-status')).toHaveText('On Line');
+    await expect(page.locator('.metric-card[data-metric-key="ups.beeper.status"] .metric-reading')).toHaveText('enabled');
     await expect(page.locator('.ups-actions')).toHaveCount(0);
     await expect(page.locator('#toggle-beeper')).toHaveCount(0);
   });

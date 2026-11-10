@@ -8,6 +8,7 @@ test.describe('Wi-Fi Configuration UI', () => {
 
   test('renders the main interface correctly', async ({ page }) => {
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target=\"network\"]');
     
     // Verify title and headers (US-112: the Wi-Fi settings live in the Network page)
@@ -29,6 +30,7 @@ test.describe('Wi-Fi Configuration UI', () => {
     });
 
     await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
     await page.click('button[data-target=\"network\"]');
     
     // Fill SSID and password manually

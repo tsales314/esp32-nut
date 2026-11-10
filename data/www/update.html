@@ -25,10 +25,29 @@
         
         <div class="status" id="statusMessage"></div>
         
-        <a href="/" class="btn-back">&larr; Back to Home</a>
+        <a href="/" target="_top" class="btn-back">&larr; Back to Home</a>
     </div>
 
     <script>
+        // The OTA page also works standalone; within the dashboard it becomes
+        // a frameless panel and reports its height to the parent app shell.
+        const embedded = window.parent !== window &&
+            new URLSearchParams(window.location.search).get('embedded') === '1';
+        if (embedded) {
+            document.body.classList.add('ota-embedded');
+            const reportHeight = () => {
+                const container = document.querySelector('.ota-container');
+                if (!container) return;
+                window.parent.postMessage({
+                    type: 'esp32-nut-ota-height',
+                    height: Math.max(320, Math.ceil(container.getBoundingClientRect().height + 20))
+                }, window.location.origin);
+            };
+            window.addEventListener('load', reportHeight);
+            if ('ResizeObserver' in window) new ResizeObserver(reportHeight).observe(
+                document.querySelector('.ota-container'));
+        }
+
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const progressContainer = document.getElementById('progressContainer');
@@ -124,7 +143,9 @@
                     showStatus('Update complete! Rebooting...', 'success');
                     progressBar.style.backgroundColor = '#28a745';
                     setTimeout(() => {
-                        window.location.href = '/';
+                        // Reload the top-level dashboard after a successful reboot.
+                        if (embedded) window.top.location.href = '/';
+                        else window.location.href = '/';
                     }, 5000);
                 } else {
                     showStatus('Error during update.', 'error');

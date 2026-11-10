@@ -64,3 +64,32 @@
     color: var(--accent-hover);
     text-shadow: 0 0 8px var(--accent-glow);
 }
+
+
+/* When /update is displayed inside the dashboard, keep the existing upload
+   widget but let the dashboard own navigation and the outer page background. */
+body.ota-embedded {
+    background: transparent !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+body.ota-embedded .ota-container {
+    max-width: 650px;
+    margin: 0 auto;
+    padding: 1.15rem;
+    box-sizing: border-box;
+}
+body.ota-embedded .ota-container > h2 {
+    display: none;
+}
+body.ota-embedded .btn-back {
+    display: none;
+}
+body.ota-embedded .dropzone {
+    box-sizing: border-box;
+}
+@media (max-width: 600px) {
+    body.ota-embedded .ota-container { padding: .85rem; }
+    body.ota-embedded .dropzone { padding: 1.4rem .65rem; }
+}

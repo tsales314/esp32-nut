@@ -116,8 +116,10 @@ export async function serveUpdatePage(page: Page): Promise<void> {
     }
     return route.fallback();
   };
-  await page.route('http://esp32.local/update', serveUpdateHtml);
-  await page.route('http://esp32.local/update.html', serveUpdateHtml);
+  // Include /update?embedded=1 used by the integrated dashboard iframe.
+  await page.route(
+    url => url.host === 'esp32.local' && ['/update', '/update.html'].includes(url.pathname),
+    serveUpdateHtml);
 
   await page.route('**/shared.css*', route => {
     const css = ['bundle.css', 'shared_ota.css']

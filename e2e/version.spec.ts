@@ -24,7 +24,8 @@ test.describe('Dynamic Firmware Version', () => {
     // Load the mock HTTP URL
     await page.goto('http://esp32.local/');
 
-    // Verify the version string is updated
+    // The firmware version lives in the hamburger menu, not the default dashboard.
+    await page.locator('#nav-toggle').click();
     const versionSpan = page.locator('#fw-version');
     await expect(versionSpan).toBeVisible();
     await expect(versionSpan).toHaveText('v1.2.3-test');

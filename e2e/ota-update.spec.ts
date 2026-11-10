@@ -27,16 +27,53 @@ test.describe('OTA Update Flow', () => {
     await serveUpdatePage(page);
   });
 
-  test('should navigate to OTA page from index', async ({ page }) => {
-    // We can't really navigate to OTA from index without mocking the HTML first 
-    // unless we use http://esp32.local and intercept it. But let's just use absolute URL
+  test('firmware update keeps the dashboard navigation and can return to UPS stats', async ({ page }) => {
     await page.goto('http://esp32.local/');
-    
-    // Clicca sul tab OTA
-    await page.click('button[data-target="ota"]');
-    
-    // Verifica che l'URL sia corretto
-    await expect(page).toHaveURL(/.*\/update/);
+    await page.locator('#nav-toggle').click();
+    await page.locator('button[data-target="ota"]').click();
+
+    // OTA loads its original upload page inside the existing dashboard shell.
+    await expect(page).toHaveURL('http://esp32.local/');
+    await expect(page.locator('#content-ota')).toBeVisible();
+    await expect(page.locator('#nav-toggle')).toBeVisible();
+    await expect(page.locator('button[data-target="ota"]')).toHaveClass(/active/);
+    await expect(page.locator('#ota-frame')).toHaveAttribute('src', '/update?embedded=1');
+    await expect(page.frameLocator('#ota-frame').locator('#fileInput')).toBeAttached();
+    await expect(page.frameLocator('#ota-frame').locator('.dropzone')).toBeVisible();
+    await expect(page.frameLocator('#ota-frame').locator('.btn-back')).toBeHidden();
+
+    await page.locator('#nav-toggle').click();
+    await page.locator('button[data-target="ups"]').click();
+    await expect(page.locator('#content-ups')).toBeVisible();
+    await expect(page.locator('#nav-toggle')).toBeVisible();
+  });
+
+  test('upload in the integrated OTA panel uses the original /update endpoint', async ({ page }) => {
+    await page.route('**/update', route => {
+      if (route.request().method() === 'POST') {
+        return route.fulfill({ status: 200, contentType: 'text/plain', body: 'OK' });
+      }
+      return route.fallback();
+    });
+    await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
+    await page.locator('button[data-target="ota"]').click();
+    const frame = page.frameLocator('#ota-frame');
+    await frame.locator('#fileInput').setInputFiles(dummyBinPath);
+    await expect(frame.locator('#statusMessage')).toContainText('Update complete');
+    await expect(page.locator('#content-ota')).toBeVisible();
+    await expect(page.locator('#nav-toggle')).toBeVisible();
+  });
+
+  test('mobile OTA retains navigation without a horizontal scrollbar', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('http://esp32.local/');
+    await page.locator('#nav-toggle').click();
+    await page.locator('button[data-target="ota"]').click();
+    await expect(page.frameLocator('#ota-frame').locator('.dropzone')).toBeVisible();
+    const overflow = await page.evaluate(() =>
+      document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 
   test('should load OTA page and have upload elements', async ({ page }) => {

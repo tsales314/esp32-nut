@@ -9,7 +9,7 @@ test.describe('Default Tab', () => {
     });
   });
 
-  test('UPS Telemetry is the default tab and triggers polling', async ({ page }) => {
+  test('Dashboard is the default tab and triggers polling', async ({ page }) => {
     let upsApiCalled = false;
 
     await page.route('**/api/ups-vars', async route => {
@@ -34,7 +34,7 @@ test.describe('Default Tab', () => {
     await expect(activeContent).toHaveAttribute('id', 'content-ups');
 
     const upsStatus = page.locator('#ups-status');
-    await expect(upsStatus).toHaveText('OL', { timeout: 3000 });
+    await expect(upsStatus).toHaveText('On Line', { timeout: 3000 });
     
     expect(upsApiCalled).toBeTruthy();
   });

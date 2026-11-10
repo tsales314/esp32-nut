@@ -17,7 +17,10 @@ test.describe('Responsive Web UI', () => {
 
     // Verifichiamo che i container principali abbiano ricevuto il layout a colonna
     const containerStyle = await appContainer.evaluate((el) => window.getComputedStyle(el).flexDirection);
-    expect(containerStyle).toBe('column');
+    expect(containerStyle).toBe('row');
+
+    await expect(page.locator('#nav-toggle')).toBeVisible();
+    await expect(page.locator('#app-sidebar')).toHaveAttribute('aria-hidden', 'true');
 
     // Verifichiamo che non ci sia scroll orizzontale (nessun elemento eccede la larghezza)
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);

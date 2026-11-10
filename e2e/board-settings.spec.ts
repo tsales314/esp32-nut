@@ -48,6 +48,7 @@ let mock: Mock;
 
 async function openBoardTab(page: Page) {
   await page.goto('http://esp32.local/');
+  await page.locator('#nav-toggle').click();
   await page.locator('button.tab[data-target="board"]').click();
   await expect(page.locator('#content-board')).toHaveClass(/active/);
   await expect(page.locator('#board-name')).toHaveText(mock.board.label);
@@ -109,6 +110,7 @@ test.describe('Board page (US-094)', () => {
     expect(targets.indexOf('weblogin')).toBe(targets.indexOf('board') + 1);
     expect(mock.getHits).toBe(0);
 
+    await page.locator('#nav-toggle').click();
     await tab.click();
     await expect(page.locator('.page-title')).toHaveText('Board Settings');
     await expect(page.locator('#board-name')).toHaveText('ESP32-S3 DevKitC-1');
@@ -274,6 +276,7 @@ test.describe('Board page (US-094)', () => {
 
       // The saved value is what the next opening shows
       mock.board.auto_shutdown!.on = true;
+      await page.locator('#nav-toggle').click();
       await page.locator('button.tab[data-target="ups"]').click();
       await openBoardTab(page);
       await expect(page.locator('#autosd-on')).toBeChecked();
